@@ -1,0 +1,29 @@
+import { useState, useEffect } from 'react'
+import io from 'socket.io-client'
+
+const socket = io.connect("http://localhost:3001")
+
+function App() {
+  const [room, setRoom] = useState("");
+
+  const joinRoom = () => {
+    if (room !== "") {
+      socket.emit("join_room", room);
+    }
+  };
+
+  return (
+    <div style={{ padding: '50px', textAlign: 'center' }}>
+      <h1>Вхід у гру</h1>
+      <input 
+        placeholder="Номер кімнати..." 
+        onChange={(event) => {
+          setRoom(event.target.value);
+        }}
+      />
+      <button onClick={joinRoom}>Зайти</button>
+    </div>
+  )
+}
+
+export default App
