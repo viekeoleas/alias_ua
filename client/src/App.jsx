@@ -56,11 +56,10 @@ const styles = {
     marginBottom: '20px',
     outline: 'none'
   },
-  // --- СТИЛІ ДЛЯ ЛОББИ (3 колонки) ---
   gameLayout: {
     display: 'flex',
     flexDirection: 'row',
-    justifyContent: 'space-between', // Розподіляємо по краях
+    justifyContent: 'space-between',
     gap: '40px',
     width: '98%',
     maxWidth: '1400px',
@@ -130,11 +129,11 @@ function GamePage() {
   const [teams, setTeams] = useState({ team1: [], team2: [] });
   const [nickname, setNickname] = useState("");
   const [isNameSet, setIsNameSet] = useState(false);
-  const [gameStatus, setGameStatus] = useState('lobby'); // 'lobby' | 'game'
+  const [gameStatus, setGameStatus] = useState('lobby'); 
+  const [currentWord, setCurrentWord] = useState(""); 
 
   // 2. ЕФЕКТИ
   useEffect(() => {
-    // Перевірка імені в кеші
     const savedName = localStorage.getItem("alias_player_name");
     if (savedName) {
       setNickname(savedName);
@@ -143,23 +142,34 @@ function GamePage() {
   }, []);
 
   useEffect(() => {
-    // Підключення до кімнати
     if (isNameSet) {
         socket.emit("join_room", roomId);
     }
 
-    // Слухаємо оновлення команд
+    // --- ОЧИЩЕННЯ СТАРИХ СЛУХАЧІВ ---
+    socket.off("update_teams");
+    socket.off("game_started");
+    socket.off("update_word");
+
+    // --- ДОДАВАННЯ НОВИХ ---
+    
     socket.on("update_teams", (updatedTeams) => {
       setTeams(updatedTeams);
-      // Якщо ми підключилися до гри, яка вже йде - треба оновити статус
       if (updatedTeams.status === 'game') {
           setGameStatus('game');
       }
     });
     
-    // Слухаємо старт гри
-    socket.on("game_started", () => {
+    socket.on("game_started", (word) => {
+        console.log("Клієнт отримав слово:", word);
+        if (!word) return;
         setGameStatus('game');
+        setCurrentWord(word);
+    });
+
+    // Слухаємо оновлення слова (ТЕПЕР ВОНО ВСЕРЕДИНІ useEffect)
+    socket.on("update_word", (newWord) => {
+        setCurrentWord(newWord);
     });
 
     socket.on("error", (msg) => {
@@ -170,6 +180,7 @@ function GamePage() {
     return () => {
       socket.off("update_teams");
       socket.off("game_started");
+      socket.off("update_word");
     };
   }, [roomId, isNameSet]);
 
@@ -189,11 +200,16 @@ function GamePage() {
   };
 
   const handleStartGame = () => {
-    // Відправляємо серверу команду почати
-    socket.emit("start_game", { roomId });
+    console.log("Button clicked: request_start");
+    socket.emit("request_start", { roomId }); // <--- ВАЖЛИВО: Перевір сервер!
   };
 
-  // 4. РЕНДЕР: ВВІД ІМЕНІ
+  // ОСЬ ВОНА ТЕПЕР НА МІСЦІ
+  const handleNextWord = () => {
+    socket.emit("next_word", { roomId });
+  };
+
+  // 4. РЕНДЕР
   if (!isNameSet) {
     return (
       <div style={styles.container}>
@@ -211,7 +227,6 @@ function GamePage() {
     );
   }
 
-  // 5. РЕНДЕР: ОСНОВНИЙ ЕКРАН
   return (
     <div style={styles.container}>
       
@@ -234,10 +249,9 @@ function GamePage() {
           )}
         </div>
 
-        {/* ЦЕНТР (ЗМІНЮЄТЬСЯ) */}
+        {/* ЦЕНТР */}
         <div style={{...styles.teamBox, flex: 2, borderColor: 'transparent', background: 'transparent'}}>
           {gameStatus === 'lobby' ? (
-            // ЛОБІ: КОД + КНОПКА СТАРТ
             <>
               <p>Код комнаты:</p>
               <div style={styles.smallRoomCode}>{roomId}</div>
@@ -253,11 +267,13 @@ function GamePage() {
           ) : (
             // ГРА: КАРТКА
             <div style={styles.card}>
-              <h1 style={{fontSize: '3em', color: '#ffd700', margin: '20px 0'}}>СЛОВО</h1>
+              <h1 style={{fontSize: '3em', color: '#ffd700', margin: '20px 0'}}>
+                {currentWord}
+              </h1>
               <p style={{color: '#888'}}>Тут буде таймер...</p>
               <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
-                 <button style={{...styles.button, backgroundColor: '#ff6b6b'}}>Пропустити</button>
-                 <button style={{...styles.button, backgroundColor: '#4ecdc4'}}>Вгадав</button>
+                 <button style={{...styles.button, backgroundColor: '#ff6b6b'}} onClick={handleNextWord}>Пропустити</button>
+                 <button style={{...styles.button, backgroundColor: '#4ecdc4'}} onClick={handleNextWord}>Вгадав</button>
               </div>
             </div>
           )}
