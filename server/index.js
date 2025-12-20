@@ -1,20 +1,35 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require("socket.io");
-const cors = require('cors');
-const words = require('./words.json'); // <--- Імпортуємо слова
+// ================= НАЛАШТУВАННЯ СЕРВЕРА =================
+
+// Підключаємо необхідні бібліотеки
+const express = require('express'); // Фреймворк для веб-сервера
+const http = require('http');       // Стандартний модуль Node.js для HTTP (потрібен для Socket.io)
+const { Server } = require("socket.io"); // Бібліотека для веб-сокетів (real-time зв'язок)
+const cors = require('cors');       // Дозволяє запити з інших доменів (наприклад, з твого React на localhost:3000)
 
 const app = express();
-app.use(cors());
+app.use(cors()); // Дозволяємо всім стукатись на сервер
+
+// Створюємо HTTP сервер на базі Express
 const server = http.createServer(app);
+
+// Налаштовуємо Socket.io
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
+    cors: { 
+        origin: "*", // Дозволяємо підключення з будь-якого сайту/порту
+        methods: ["GET", "POST"] 
+    }
 });
 
-// --- ХРАНИЛИЩЕ ДАННИХ ---
+// ================= ГЛОБАЛЬНІ ЗМІННІ ТА ХЕЛПЕРИ =================
+
+const ROUND_TIME = 60; // Тривалість раунду в секундах
+
+// "База даних" у пам'яті. 
+// Ключ - ID кімнати (напр. 'X7A1'), Значення - об'єкт з даними гри.
+// УВАГА: При перезавантаженні сервера всі кімнати зникнуть.
 const rooms = {};
 
-// Генератор ID кімнати
+// Генерує випадковий код кімнати з 4 символів (напр. "A1B2")
 function generateRoomId() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
@@ -24,6 +39,8 @@ function generateRoomId() {
     return result;
 }
 
+// Алгоритм перемішування масиву (Fisher-Yates shuffle)
+// Використовується, щоб слова випадали у випадковому порядку
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -32,145 +49,274 @@ function shuffleArray(array) {
     return array;
 }
 
-// --- ГОЛОВНА ЛОГІКА ---
-io.on('connection', (socket) => { 
-    console.log(`User connected: ${socket.id}`);
+// --- ФУНКЦІЯ БЕЗПЕКИ ---
+// Вона прибирає "секретні" дані перед відправкою на клієнт.
+// Клієнту не треба знати повний список слів (deck), щоб не підглядати через DevTools,
+// і не треба отримувати технічні об'єкти таймерів.
+function getSafeRoom(room) {
+    // Деструктуризація: витягуємо deleteTimeout, timer, deck в окремі змінні (і ігноруємо їх),
+    // а все інше збираємо в об'єкт safeData.
+    const { deleteTimeout, timer, deck, ...safeData } = room;
+    return safeData;
+}
 
-    // 1. СТВОРЕННЯ
+// ================= ОСНОВНА ЛОГІКА SOCKET.IO =================
+
+// Ця функція спрацьовує КОЖНОГО разу, коли хтось відкриває сторінку і підключається
+io.on('connection', (socket) => { 
+    console.log(`User connected: ${socket.id}`); // socket.id - унікальний ID підключення (змінюється при оновленні сторінки)
+
+    // --- 1. СТВОРЕННЯ КІМНАТИ ---
     socket.on("create_room", () => {
         let roomId = generateRoomId();
+        // Перевірка на колізії: якщо такий ID вже є, генеруємо новий
         while (rooms[roomId]) {
             roomId = generateRoomId();
         }
 
+        // Ініціалізація стану нової гри
         rooms[roomId] = {
-            team1: [],
-            team2: [],
-            status: 'lobby',
-            deck: [],      // Додав ініціалізацію пустих полів
-            currentWord: null
+            team1: [],          // Гравці команди 1
+            team2: [],          // Гравці команди 2
+            score: { 1: 0, 2: 0 }, // Загальний рахунок гри
+            roundScore: 0,      // Рахунок поточного раунду
+            roundHistory: [],   // Історія слів за раунд (для екрану Review)
+            currentTeam: 1,     // Хто зараз ходить
+            status: 'lobby',    // Статуси: 'lobby', 'game', 'review'
+            deck: [],           // Колода слів для поточної гри
+            currentWord: null,  // Слово, яке зараз на екрані
+            timer: null,        // Технічна змінна для setInterval
+            timeLeft: ROUND_TIME, // Час, що залишився
+            deleteTimeout: null // Таймер для видалення кімнати, якщо всі вийшли
         };
 
-        socket.join(roomId);
-        socket.emit("room_created", roomId);
-        console.log(`Кімната створена: ${roomId}`);
+        socket.join(roomId); // Підписуємо цей сокет на події цієї кімнати
+        socket.emit("room_created", roomId); // Кажемо клієнту: "Готово, ось твій ID"
     });
 
-    // 2. ВХІД У КІМНАТУ
+    // --- 2. ВХІД У КІМНАТУ ---
     socket.on("join_room", (roomId) => {
-        if (rooms[roomId]) {
-            socket.join(roomId);
-            socket.emit("update_teams", rooms[roomId]);
+        const room = rooms[roomId];
+        if (room) {
+            // Якщо кімната була помічена на видалення (бо була порожня), скасовуємо це.
+            // Люди повернулися!
+            if (room.deleteTimeout) {
+                clearTimeout(room.deleteTimeout);
+                room.deleteTimeout = null;
+                console.log(`🗑️❌ Видалення кімнати ${roomId} скасовано.`);
+            }
+
+            socket.join(roomId); // Додаємо сокет у "чат" кімнати
             
-            // Якщо гравець перепідключився під час гри — треба показати йому поточне слово!
-            if (rooms[roomId].status === 'game' && rooms[roomId].currentWord) {
-                 socket.emit("game_started", rooms[roomId].currentWord);
-                 // Або окрему подію update_word, але game_started теж спрацює
+            // Відправляємо клієнту актуальний стан кімнати (без секретних полів)
+            socket.emit("update_teams", getSafeRoom(room));
+            socket.emit("update_score", room.score); 
+            
+            // Відновлення стану (Reconnection):
+            // Якщо гравець перезавантажив сторінку під час гри, ми відразу показуємо йому гру.
+            if (room.status === 'game') {
+                 if (room.currentWord) socket.emit("game_started", room.currentWord);
+                 socket.emit("timer_update", room.timeLeft);
+            }
+            // Якщо під час рев'ю - показуємо рев'ю
+            if (room.status === 'review') {
+                socket.emit("round_ended", room.roundHistory);
             }
         }
     });
 
-    // 3. СТАРТ ГРИ (ЦЕ ПРАВИЛЬНА ВЕРСІЯ)
+    // --- 3. СТАРТ РАУНДУ ---
     socket.on("request_start", ({roomId}) => {
-        console.log(`Отримано запит старту для кімнати: ${roomId}`);
         const room = rooms[roomId];
-        
         if (room) {
+            // Скидаємо старий таймер, якщо він раптом був
+            if (room.timer) clearInterval(room.timer);
+
+            // Налаштовуємо змінні для старту
             room.status = 'game';
+            room.roundHistory = []; 
+            room.roundScore = 0;    
             
-            // 1. Створюємо копію слів і перемішуємо їх
-            // (Використовуємо JSON файл)
-            room.deck = shuffleArray([...words]); 
+            // Тимчасовий список слів (потім ти заміниш це на базу даних або JSON)
+            const wordsList = ["Київ", "Яблуко", "Зеленський", "Код", "Машина", "Сонце", "Кава", "Кіт", "Інтернет", "Реактор", "Борщ", "Сало", "Мрія", "Дніпро"]; 
             
-            // 2. Беремо перше слово
+            // Копіюємо і перемішуємо слова
+            room.deck = shuffleArray([...wordsList]); 
+            
+            // Беремо перше слово
             const firstWord = room.deck.pop();
             room.currentWord = firstWord; 
+            room.timeLeft = ROUND_TIME;
 
-            console.log(`Кімната ${roomId} почала гру. Слово: ${firstWord}`);
-            
-            // 3. Відправляємо сигнал старту І саме слово
+            // Повідомляємо ВСІХ у кімнаті, що гра почалася
             io.to(roomId).emit("game_started", firstWord);
-        }
-    });
+            io.to(roomId).emit("timer_update", room.timeLeft);
 
-    // 4. ВСТУП У КОМАНДУ
-    socket.on("join_team", ({ roomId, team, name }) => {
-        const room = rooms[roomId];
-        
-        if (room) {
-            // Чистимо старі записи гравця
-            room.team1 = room.team1.filter(player => player.id !== socket.id);
-            room.team2 = room.team2.filter(player => player.id !== socket.id);
+            // ЗАПУСК ТАЙМЕРА НА СЕРВЕРІ
+            // Сервер - джерело правди про час.
+            room.timer = setInterval(() => {
+                room.timeLeft--; 
+                io.to(roomId).emit("timer_update", room.timeLeft); // Синхронізуємо час з клієнтами
 
-            // Додаємо в нову
-            const newPlayer = { id: socket.id, name: name };
-            if (team === 1) room.team1.push(newPlayer);
-            if (team === 2) room.team2.push(newPlayer);
-
-            // Оновлюємо всіх
-            io.to(roomId).emit("update_teams", room);
-        }
-    });
-
-    // --- ТУТ БУВ ДУБЛІКАТ request_start, Я ЙОГО ВИДАЛИВ ---
-
-    // 5. НАСТУПНЕ СЛОВО
-    socket.on("next_word", ({roomId}) => {
-        const room = rooms[roomId];
-        
-        // 1. Перевіряємо, чи йде гра і чи є слова
-        if (room && room.status === 'game' && room.deck.length > 0) {
-            
-            // 2. Дістаємо слово
-            const nextWord = room.deck.pop();
-            room.currentWord = nextWord;
-
-            console.log(`Наступне слово у кімнаті ${roomId}: ${nextWord}`);
-
-            // 3. Відправляємо нове слово ВСІМ
-            io.to(roomId).emit("update_word", nextWord);
-        
-        } else if (room && room.deck.length === 0) {
-            // Якщо слів більше немає
-            io.to(roomId).emit("game_over");
-        }
-    });
-
-   socket.on('disconnect', () => {
-        for (const roomId in rooms) {
-            const room = rooms[roomId];
-            
-            // Якщо кімната вже порожня або не існує - пропускаємо
-            if (!room) continue;
-
-            const wasInTeam1 = room.team1.find(p => p.id === socket.id);
-            const wasInTeam2 = room.team2.find(p => p.id === socket.id);
-            
-            // Якщо гравець був у цій кімнаті
-            if (wasInTeam1 || wasInTeam2) {
-                // Видаляємо гравця
-                room.team1 = room.team1.filter(p => p.id !== socket.id);
-                room.team2 = room.team2.filter(p => p.id !== socket.id);
-                
-                // Сповіщаємо тих, хто залишився (якщо такі є)
-                io.to(roomId).emit("update_teams", room);
-
-                // --- ОПТИМІЗАЦІЯ (GC - Garbage Collection) ---
-                // Перевіряємо, чи залишився хоч хтось живий
-                const totalPlayers = room.team1.length + room.team2.length;
-                
-                if (totalPlayers === 0) {
-                    console.log(`🗑️ Кімната ${roomId} порожня. Видаляємо з пам'яті.`);
-                    delete rooms[roomId]; // <--- ЗВІЛЬНЯЄМО ПАМ'ЯТЬ
+                // Коли час вийшов
+                if (room.timeLeft <= 0) {
+                    clearInterval(room.timer); // Зупиняємо годинник
+                    room.status = 'review';    // Змінюємо статус на "Перевірка слів"
+                    
+                    // Додаємо останнє слово в історію як "не вгадане" (none), 
+                    // щоб гравці вирішили, зарахувати його чи ні
+                    if (room.currentWord) {
+                        room.roundHistory.push({ word: room.currentWord, status: 'none' });
+                    }
+                    console.log(`Кімната ${roomId}: Час вийшов -> Review.`);
+                    io.to(roomId).emit("round_ended", room.roundHistory);
                 }
-                // --------------------------------------------
+            }, 1000); // Тікає кожну секунду (1000 мс)
+        }
+    });
+
+    // --- 4. ОБРОБКА СЛІВ (Вгадав / Пропустив) ---
+    socket.on("next_word", ({roomId, action}) => {
+        const room = rooms[roomId];
+        // Приймаємо команди тільки якщо йде гра
+        if (room && room.status === 'game') {
+            // Записуємо результат попереднього слова
+            room.roundHistory.push({ word: room.currentWord, status: action });
+            
+            // Оновлюємо тимчасовий рахунок раунду
+            if (action === 'guessed') room.roundScore++;
+            if (action === 'skipped') room.roundScore--;
+
+            // Рахуємо "живий" рахунок, щоб показувати динаміку, але ще не записуємо його "навічно"
+            const liveScore = { ...room.score };
+            liveScore[room.currentTeam] += room.roundScore;
+            io.to(roomId).emit("update_score", liveScore);
+
+            // Якщо слова ще є
+            if (room.deck.length > 0) {
+                const nextWord = room.deck.pop();
+                room.currentWord = nextWord;
+                io.to(roomId).emit("update_word", nextWord);
+            } else {
+                // Якщо слова закінчились раніше часу - кінець раунду
+                clearInterval(room.timer);
+                room.status = 'review';
+                io.to(roomId).emit("round_ended", room.roundHistory);
             }
         }
-        console.log('User disconnected');
+    });
+
+    // --- 5. ПІДТВЕРДЖЕННЯ РЕЗУЛЬТАТІВ (Екран Review) ---
+    socket.on("confirm_round_results", ({roomId, finalHistory}) => {
+        const room = rooms[roomId];
+        if (room) {
+            // Перераховуємо бали на основі фінального списку 
+            // (бо гравці могли змінити статуси слів на екрані Review)
+            let finalRoundPoints = 0;
+            finalHistory.forEach(item => {
+                if (item.status === 'guessed') finalRoundPoints += 1;
+                if (item.status === 'skipped') finalRoundPoints -= 1;
+            });
+
+            // Оновлюємо ГЛОБАЛЬНИЙ рахунок гри
+            room.score[room.currentTeam] += finalRoundPoints;
+            
+            // Міняємо команду (була 1 -> стала 2, була 2 -> стала 1)
+            room.currentTeam = room.currentTeam === 1 ? 2 : 1;
+            room.status = 'lobby'; 
+
+            console.log(`Раунд завершено. Новий рахунок:`, room.score);
+
+            io.to(roomId).emit("update_score", room.score);
+            io.to(roomId).emit("results_confirmed"); // Повертає клієнтів у лобі
+        }
+    });
+
+    // --- 6. ПРИЄДНАННЯ ДО КОМАНДИ ---
+    socket.on("join_team", ({ roomId, team, name }) => {
+        const room = rooms[roomId];
+        if (room) {
+            // Валідація: ім'я не може бути пустим
+            if (!name || !name.trim()) return;
+
+            // КРОК 1: Очистка. 
+            // Якщо цей гравець вже був десь записаний (навіть в іншій команді) - видаляємо старий запис.
+            // Це захищає від дублювання гравців при багаторазових кліках.
+            room.team1 = room.team1.filter(p => p.id !== socket.id && p.name !== name);
+            room.team2 = room.team2.filter(p => p.id !== socket.id && p.name !== name);
+
+            // КРОК 2: Створюємо об'єкт гравця
+            const newPlayer = { id: socket.id, name: name };
+
+            // КРОК 3: Додаємо у вибрану команду
+            const teamId = Number(team); 
+
+            if (teamId === 1) {
+                room.team1.push(newPlayer);
+            } else if (teamId === 2) {
+                room.team2.push(newPlayer);
+            } else {
+                console.log(`⚠️ Помилка: невідома команда ${team} від гравця ${name}`);
+            }
+            
+            // КРОК 4: Всім у кімнаті розсилаємо новий список команд
+            io.to(roomId).emit("update_teams", getSafeRoom(room));
+        }
+    });
+
+    // --- 7. ВІДКЛЮЧЕННЯ (DISCONNECT) ---
+    // Найскладніша частина через проблему "F5" (оновлення сторінки)
+    socket.on('disconnect', () => {
+        // Ми НЕ видаляємо гравця миттєво.
+        // Коли ти тиснеш F5, сокет розривається, і за секунду створюється новий.
+        // Якщо видаляти відразу, гравець "блимне" і зникне зі списку.
+        
+        setTimeout(() => {
+            for (const roomId in rooms) {
+                const room = rooms[roomId];
+                if (!room) continue;
+
+                // Збираємо ID всіх гравців, які записані в командах
+                const team1Ids = room.team1.map(p => p.id);
+                const team2Ids = room.team2.map(p => p.id);
+                const allPlayerIds = [...team1Ids, ...team2Ids];
+
+                // Якщо ID сокета, що відключився (socket.id), все ще є в списках команди...
+                // Це означає, що за 5 секунд він НЕ перепідключився (не замінив старий ID новим через join_team).
+                // Значить, він реально пішов.
+                if (allPlayerIds.includes(socket.id)) {
+                    room.team1 = room.team1.filter(p => p.id !== socket.id);
+                    room.team2 = room.team2.filter(p => p.id !== socket.id);
+                    // Оновлюємо списки для тих, хто залишився
+                    io.to(roomId).emit("update_teams", getSafeRoom(room));
+                }
+
+                // Логіка видалення порожньої кімнати
+                if (room.team1.length === 0 && room.team2.length === 0) {
+                    if (room.timer) clearInterval(room.timer); // Зупиняємо гру, якщо вона йшла
+                    
+                    // Ставимо таймер на остаточне видалення кімнати через 30 сек
+                    if (!room.deleteTimeout) {
+                        console.log(`⏳ Кімната ${roomId} порожня. Видалення через 30 сек...`);
+                        room.deleteTimeout = setTimeout(() => {
+                            // Подвійна перевірка через 30 сек: раптом хтось зайшов?
+                            if (rooms[roomId] && rooms[roomId].team1.length === 0 && rooms[roomId].team2.length === 0) {
+                                delete rooms[roomId]; // Видаляємо з пам'яті сервера
+                                console.log(`🗑️ Кімната ${roomId} остаточно видалена.`);
+                            } else {
+                                // Якщо хтось зайшов, скасовуємо видалення
+                                if(rooms[roomId]) rooms[roomId].deleteTimeout = null;
+                            }
+                        }, 30000);
+                    }
+                }
+            }
+        }, 5000); // Чекаємо 5 секунд (Grace period)
     });
 
 });
 
+// Запуск прослуховування порту
 server.listen(3001, () => {
     console.log('SERVER STARTED ON 3001');
 });
