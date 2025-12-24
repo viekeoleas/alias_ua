@@ -99,7 +99,8 @@ function GamePage() {
   const [currentWord, setCurrentWord] = useState("");          // Слово на екрані
   const [timeLeft, setTimeLeft] = useState(60);                // Таймер
   const [reviewHistory, setReviewHistory] = useState([]);      // Локальна копія історії слів для редагування
-
+  const [activePlayerId, setActivePlayerId] = useState(null); // <--- НОВЕ
+  const [nextExplainerId, setNextExplainerId] = useState(null); // <--- НОВЕ
   // ЕФЕКТ 1: Перевірка LocalStorage при першому вході
   // Якщо гравець оновив сторінку, ми намагаємось згадати його ім'я
   useEffect(() => {
@@ -134,12 +135,18 @@ function GamePage() {
     // --- СЛУХАЧІ ПОДІЙ ВІД СЕРВЕРА ---
     
     // Оновлення списків команд (хтось зайшов/вийшов)
-    socket.on("update_teams", (updatedTeams) => setTeams(updatedTeams));
-    
+    socket.on("update_teams", (updatedTeams) => {
+      setTeams(updatedTeams);
+      setNextExplainerId(updatedTeams.nextExplainerId); // <--- ЗБЕРІГАЄМО
+      
+      if (updatedTeams.status === 'game') setGameStatus('game');
+      if (updatedTeams.status === 'review') setGameStatus('review');
+    });
     // Початок гри (сервер обрав перше слово)
-    socket.on("game_started", (word) => {
+    socket.on("game_started", ({ word, explainerId }) => { // <--- Приходить об'єкт
         setGameStatus('game');
         setCurrentWord(word);
+        setActivePlayerId(explainerId); // <--- Запам'ятовуємо, хто бос
     });
 
     // Оновлення слова (коли натиснули "Вгадав" або "Пропустив")
@@ -258,7 +265,11 @@ function GamePage() {
           <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[1]}</h1>
           {/* Список гравців команди 1 */}
           <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team1.map(p => <div key={p.id}>😎 {p.name}</div>)}
+            {teams.team1.map(p => (
+                <div key={p.id} style={{padding:'5px', fontWeight: p.id === nextExplainerId ? 'bold' : 'normal'}}>
+                    😎 {p.name} {p.id === nextExplainerId && ' 🎤'} {/* <--- СТРІЛОЧКА/МІКРОФОН */}
+                </div>
+            ))}
           </div>
           {/* Кнопка вступу (тільки в лобі) */}
           {gameStatus === 'lobby' && <button style={{...styles.joinBtn, backgroundColor: '#ff6b6b'}} onClick={() => joinTeam(1)}>Вступить</button>}
@@ -275,18 +286,32 @@ function GamePage() {
             </>
           )}
 
-          {/* ЕКРАН 2: ГРА (Йде час) */}
-          {gameStatus === 'game' && (
+         {gameStatus === 'game' && (
             <div style={styles.card}>
               <div style={{fontSize: '2em', fontWeight: 'bold', color: timeLeft <= 10 ? '#ff4d4d' : '#fff', marginBottom: '10px'}}>⏱ {timeLeft}</div>
-              <h1 style={{fontSize: '3em', color: '#ffd700', margin: '20px 0'}}>{currentWord}</h1>
-              <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
-                 <button style={{...styles.button, backgroundColor: '#ff6b6b'}} onClick={() => handleNextWord('skipped')}>Пропустити (-1)</button>
-                 <button style={{...styles.button, backgroundColor: '#4ecdc4'}} onClick={() => handleNextWord('guessed')}>Вгадав (+1)</button>
-              </div>
+              
+              {/* ПЕРЕВІРКА РОЛІ */}
+              {socket.id === activePlayerId ? (
+                  // --- ТИ ПОЯСНЮЄШ (Бачиш все) ---
+                  <>
+                      <h1 style={{fontSize: '3em', color: '#ffd700', margin: '20px 0'}}>{currentWord}</h1>
+                      <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
+                         <button style={{...styles.button, backgroundColor: '#ff6b6b'}} onClick={() => handleNextWord('skipped')}>Пропустити (-1)</button>
+                         <button style={{...styles.button, backgroundColor: '#4ecdc4'}} onClick={() => handleNextWord('guessed')}>Вгадав (+1)</button>
+                      </div>
+                      <p style={{color: '#888', marginTop: '10px'}}>Ти пояснюєш! Швидше!</p>
+                  </>
+              ) : (
+                  // --- ТИ ВГАДУЄШ АБО ДИВИШСЯ ---
+                  <>
+                      <h1 style={{fontSize: '3em', color: '#555', margin: '20px 0'}}>???</h1>
+                      <p style={{fontSize: '1.2em'}}>Зараз пояснює гравець твоєї (або чужої) команди.</p>
+                      <p style={{color: '#ffd700'}}>Слухай уважно!</p>
+                  </>
+              )}
+              
             </div>
           )}
-
           {/* ЕКРАН 3: ПЕРЕВІРКА СЛІВ (Review) */}
           {gameStatus === 'review' && (
               <div style={styles.card}>
@@ -334,8 +359,12 @@ function GamePage() {
            <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[2]}</h1>
            {/* Список гравців команди 2 */}
            <div style={{textAlign: 'left', margin: '20px'}}>
-             {teams.team2.map(p => <div key={p.id}>🤠 {p.name}</div>)}
-           </div>
+            {teams.team1.map(p => (
+                <div key={p.id} style={{padding:'5px', fontWeight: p.id === nextExplainerId ? 'bold' : 'normal'}}>
+                    😎 {p.name} {p.id === nextExplainerId && ' 🎤'} {/* <--- СТРІЛОЧКА/МІКРОФОН */}
+                </div>
+            ))}
+          </div>
            {gameStatus === 'lobby' && <button style={{...styles.joinBtn, backgroundColor: '#4ecdc4'}} onClick={() => joinTeam(2)}>Вступить</button>}
         </div>
       </div>
