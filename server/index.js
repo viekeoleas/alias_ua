@@ -22,8 +22,6 @@ const io = new Server(server, {
 
 // ================= ГЛОБАЛЬНІ ЗМІННІ ТА ХЕЛПЕРИ =================
 
-const ROUND_TIME = 60; // Тривалість раунду в секундах
-
 // "База даних" у пам'яті. 
 // Ключ - ID кімнати (напр. 'X7A1'), Значення - об'єкт з даними гри.
 // УВАГА: При перезавантаженні сервера всі кімнати зникнуть.
@@ -51,28 +49,21 @@ function shuffleArray(array) {
 
 // --- ФУНКЦІЯ ОЧИЩЕННЯ + ВИЗНАЧЕННЯ НАСТУПНОГО ГРАВЦЯ ---
 function getSafeRoom(room) {
-    // 1. Прибираємо секретні поля
     const { deleteTimeout, timer, deck, ...safeData } = room;
-
-    // 2. Визначаємо, хто має пояснювати наступним (поки ми в Лобі)
-    let nextExplainerId = null;
+    // ... (твоя стара логіка currentTeamArray) ...
     
+    // (Код про nextExplainerId залишається той самий)
+    let nextExplainerId = null;
     const currentTeamArray = room.currentTeam === 1 ? room.team1 : room.team2;
-    // Беремо індекс, але перевіряємо, щоб він не вилетів за межі масиву
-    // (на випадок, якщо гравці виходили/заходили)
     let idx = room.currentTeam === 1 ? room.team1Index : room.team2Index;
     
     if (currentTeamArray.length > 0) {
-        // Захист від виходу за межі масиву (безпечний індекс)
         const safeIndex = idx % currentTeamArray.length; 
         const player = currentTeamArray[safeIndex];
-        if (player) {
-            nextExplainerId = player.id;
-        }
+        if (player) nextExplainerId = player.id;
     }
 
-    // 3. Додаємо це ID до даних, що йдуть на клієнт
-    return { ...safeData, nextExplainerId };
+    return { ...safeData, nextExplainerId }; // Тепер сюди автоматично потраплять hostId і settings
 }
 
 // ================= ОСНОВНА ЛОГІКА SOCKET.IO =================
@@ -81,38 +72,41 @@ function getSafeRoom(room) {
 io.on('connection', (socket) => { 
     console.log(`User connected: ${socket.id}`); // socket.id - унікальний ID підключення (змінюється при оновленні сторінки)
 
-    // --- 1. СТВОРЕННЯ КІМНАТИ ---
+    // 1. СТВОРЕННЯ КІМНАТИ
+    // 1. СТВОРЕННЯ КІМНАТИ
     socket.on("create_room", () => {
         let roomId = generateRoomId();
-        // Перевірка на колізії: якщо такий ID вже є, генеруємо новий
         while (rooms[roomId]) {
             roomId = generateRoomId();
         }
 
-        // Ініціалізація стану нової гри
         rooms[roomId] = {
-            team1: [],          // Гравці команди 1
-            team2: [], // Гравці команди 2
-            spectators: []         ,
-            score: { 1: 0, 2: 0 }, // Загальний рахунок гри
-            roundScore: 0,      // Рахунок поточного раунду
-            roundHistory: [],   // Історія слів за раунд (для екрану Review)
-            currentTeam: 1,       
-            team1Index: 0, // Хто зараз пояснює в команді 1 (індекс масиву)
-            team2Index: 0, // Хто зараз пояснює в команді 2
-            activePlayerId: null, // ID сокета, який зараз бачить кнопки   // Хто зараз ходить
-            status: 'lobby',    // Статуси: 'lobby', 'game', 'review'
-            deck: [],           // Колода слів для поточної гри
-            currentWord: null,  // Слово, яке зараз на екрані
-            timer: null,        // Технічна змінна для setInterval
-            timeLeft: ROUND_TIME, // Час, що залишився
-            deleteTimeout: null // Таймер для видалення кімнати, якщо всі вийшли
+            hostId: socket.id, // <--- 👑 ЗАПАМ'ЯТОВУЄМО ХОСТА
+            settings: {        // <--- ⚙️ НАЛАШТУВАННЯ
+                roundTime: 60,
+                winScore: 30
+            },
+            team1: [],
+            team2: [],
+            spectators: [],
+            score: { 1: 0, 2: 0 },
+            roundScore: 0,
+            roundHistory: [],
+            currentTeam: 1,
+            team1Index: 0,
+            team2Index: 0,
+            activePlayerId: null,
+            status: 'lobby',
+            deck: [],
+            currentWord: null,
+            timer: null,
+            timeLeft: 60, // Початкове значення
+            deleteTimeout: null
         };
 
-        socket.join(roomId); // Підписуємо цей сокет на події цієї кімнати
-        socket.emit("room_created", roomId); // Кажемо клієнту: "Готово, ось твій ID"
+        socket.join(roomId);
+        socket.emit("room_created", roomId);
     });
-
   // 2. ВХІД У КІМНАТУ (БЕЗ РОЗМНОЖЕННЯ СПЕКТАТОРІВ)
     socket.on("join_room", ({ roomId, name }) => {
         const room = rooms[roomId];
@@ -202,7 +196,7 @@ io.on('connection', (socket) => {
             
             const firstWord = room.deck.pop();
             room.currentWord = firstWord; 
-            room.timeLeft = ROUND_TIME;
+            room.timeLeft = room.settings.roundTime; 
 
             // Відправляємо старт + ID того, хто пояснює
             io.to(roomId).emit("game_started", { word: firstWord, explainerId: room.activePlayerId });
@@ -224,6 +218,22 @@ io.on('connection', (socket) => {
         }
     });
 
+   // --- ЗМІНА НАЛАШТУВАНЬ (Тільки Хост) ---
+    socket.on("update_settings", ({ roomId, newSettings }) => {
+        const room = rooms[roomId];
+        // Перевіряємо: кімната існує І запит від хоста
+        if (room && socket.id === room.hostId) {
+            room.settings = { ...room.settings, ...newSettings };
+            
+            // Якщо змінюється час, оновлюємо візуально таймер в лобі
+            if (room.status === 'lobby' && newSettings.roundTime) {
+                room.timeLeft = newSettings.roundTime;
+                io.to(roomId).emit("timer_update", room.timeLeft);
+            }
+
+            io.to(roomId).emit("update_teams", getSafeRoom(room));
+        }
+    });
     // --- 4. ОБРОБКА СЛІВ (Вгадав / Пропустив) ---
     socket.on("next_word", ({roomId, action}) => {
         const room = rooms[roomId];
@@ -324,9 +334,13 @@ io.on('connection', (socket) => {
 
             // Функція для оновлення ID і відновлення прав ведучого
             const updatePlayerId = (playerObj) => {
-                const oldId = playerObj.id; // Зберігаємо старий ID
-                playerObj.id = socket.id;   // Ставимо новий
+                const oldId = playerObj.id;
+                playerObj.id = socket.id;
 
+                // ЯКЩО ЦЕ БУВ ХОСТ — ПЕРЕДАЄМО ПРАВА
+                if (room.hostId === oldId) {
+                    room.hostId = socket.id;
+                }
                 // ЯКЩО ЦЕЙ ГРАВЕЦЬ БУВ АКТИВНИМ (ВЕДУЧИМ)
                 if (room.activePlayerId === oldId) {
                     room.activePlayerId = socket.id; // Передаємо "мікрофон" новому сокету

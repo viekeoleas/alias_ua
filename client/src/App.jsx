@@ -101,6 +101,9 @@ function GamePage() {
   const [reviewHistory, setReviewHistory] = useState([]);      // Локальна копія історії слів для редагування
   const [activePlayerId, setActivePlayerId] = useState(null); // <--- НОВЕ
   const [nextExplainerId, setNextExplainerId] = useState(null); // <--- НОВЕ
+  const [hostId, setHostId] = useState(null); // <--- Хто тут головний?
+  const [settings, setSettings] = useState({ roundTime: 60, winScore: 30 }); // <--- Налаштування
+  const [isLocked, setIsLocked] = useState(false); // <--- Стан замочка
   // ЕФЕКТ 1: Перевірка LocalStorage при першому вході
   // Якщо гравець оновив сторінку, ми намагаємось згадати його ім'я
   useEffect(() => {
@@ -112,35 +115,45 @@ function GamePage() {
   }, []);
 
   // ЕФЕКТ 2: Основні сокет-слухачі (Логіка гри)
+ // ЕФЕКТ 2: Основні сокет-слухачі (Логіка гри)
   useEffect(() => {
-    // Цей код виконується тільки коли ми знаємо ім'я (isNameSet = true)
     if (isNameSet) {
-        // 1. Підключаємось до конкретної кімнати на сервері
-        socket.emit("join_room", roomId);
+        // Спочатку заходимо як глядач
+        socket.emit("join_room", { roomId, name: nickname });
         
-        // --- АВТО-ВСТУП ПІСЛЯ F5 (Оновлення сторінки) ---
-        // Якщо в пам'яті браузера збережено, що ми були в команді 1,
-        // ми автоматично відправляємо запит на вступ назад у цю команду.
-        const savedTeam = localStorage.getItem("alias_team_id");
-        if (savedTeam) {
-            // setTimeout потрібен, щоб сокет встиг "зайти" в кімнату (join_room)
-            // перед тим, як проситися в команду.
+        // --- РОЗУМНИЙ АВТО-ВСТУП ---
+        const savedTeam = localStorage.getItem("alias_saved_team");
+        const savedRoom = localStorage.getItem("alias_saved_room"); // Перевіряємо збережену кімнату
+
+        // Якщо ми вже обирали команду І це ТА САМА кімната (тобто це F5)
+        if (savedTeam && savedRoom === roomId) {
             setTimeout(() => {
                 socket.emit("join_team", { roomId, team: parseInt(savedTeam), name: nickname });
-            }, 100);
+            }, 300); // Невелика затримка для стабільності
+        } else {
+            // Якщо кімната інша - очищаємо старий вибір, щоб бути спектатором
+            localStorage.removeItem("alias_saved_team");
+            localStorage.removeItem("alias_saved_room");
         }
         // ---------------------------
     }
     
+    // ... далі твої socket.on без змін ...
+    
     // --- СЛУХАЧІ ПОДІЙ ВІД СЕРВЕРА ---
     
     // Оновлення списків команд (хтось зайшов/вийшов)
-    socket.on("update_teams", (updatedTeams) => {
+   socket.on("update_teams", (updatedTeams) => {
       setTeams(updatedTeams);
-      setNextExplainerId(updatedTeams.nextExplainerId); // <--- ЗБЕРІГАЄМО
+      setNextExplainerId(updatedTeams.nextExplainerId);
       
+      // Отримуємо хоста і налаштування
+      if (updatedTeams.hostId) setHostId(updatedTeams.hostId);
+      if (updatedTeams.settings) setSettings(updatedTeams.settings);
       if (updatedTeams.status === 'game') setGameStatus('game');
       if (updatedTeams.status === 'review') setGameStatus('review');
+      if (updatedTeams.isLocked !== undefined) setIsLocked(updatedTeams.isLocked);
+      if (updatedTeams.status === 'game') setGameStatus('game');
     });
     // Початок гри (сервер обрав перше слово)
     socket.on("game_started", ({ word, explainerId }) => { // <--- Приходить об'єкт
@@ -158,11 +171,38 @@ function GamePage() {
     // Оновлення рахунку в реальному часі
     socket.on("update_score", (newScore) => setScore(newScore));
 
+    socket.on("update_teams", (updatedTeams) => {
+      setTeams(updatedTeams);
+      setNextExplainerId(updatedTeams.nextExplainerId);
+      if (updatedTeams.hostId) setHostId(updatedTeams.hostId);
+      if (updatedTeams.settings) setSettings(updatedTeams.settings);
+      
+      // 👇 НОВЕ
+      if (updatedTeams.isLocked !== undefined) setIsLocked(updatedTeams.isLocked);
+      
+      if (updatedTeams.status === 'game') setGameStatus('game');
+      // ...
+    });
+
+    socket.on("kicked", () => {
+        alert("Вас було виключено з кімнати хостом.");
+        window.location.href = "/"; // Викидаємо на головну
+    });
+
+    socket.on("error_message", (msg) => {
+        alert(msg); // Наприклад "Команди заблоковані"
+    });
+
     // --- ПОЧАТОК REVIEW (Кінець раунду) ---
     // Сервер каже: "Час вийшов, ось історія слів, перевіряйте"
     socket.on("round_ended", (history) => {
         setReviewHistory(history);
         setGameStatus('review');
+    
+    });
+
+    socket.on("review_update", (updatedHistory) => {
+        setReviewHistory(updatedHistory);
     });
 
     // --- КІНЕЦЬ REVIEW ---
@@ -189,39 +229,53 @@ function GamePage() {
     if (nickname.trim()) { 
         localStorage.setItem("alias_player_name", nickname); // Запам'ятовуємо назавжди
         setIsNameSet(true); 
-        socket.emit("join_room", roomId); 
+        socket.emit("join_room", { roomId, name: nickname });
     }
   };
 
-  // Вступ до команди
+ // Вступ до команди
   const joinTeam = (teamId) => {
-      localStorage.setItem("alias_team_id", teamId); // Запам'ятовуємо команду (для F5)
+      // Запам'ятовуємо команду І поточну кімнату
+      localStorage.setItem("alias_saved_team", teamId);
+      localStorage.setItem("alias_saved_room", roomId); 
+      
       socket.emit("join_team", { roomId, team: teamId, name: nickname });
   };
-
   // Кнопка "Почати раунд"
   const handleStartGame = () => socket.emit("request_start", { roomId });
   
   // Кнопки "Вгадав" / "Пропустив"
   const handleNextWord = (action) => socket.emit("next_word", { roomId, action });
 
+  const handleToggleLock = () => socket.emit("toggle_lock", { roomId });
+  
+  const handleKick = (targetId) => {
+      if(window.confirm("Вигнати цього гравця?")) {
+          socket.emit("kick_player", { roomId, targetId });
+      }
+  };
+
+  const handleTransferHost = (targetId) => {
+      if(window.confirm("Передати права хоста цьому гравцю?")) {
+          socket.emit("transfer_host", { roomId, targetId });
+      }
+  };
   // --- ЛОГІКА РЕДАГУВАННЯ СПИСКУ (REVIEW) ---
   // Це працює ТІЛЬКИ на клієнті. Ми змінюємо state `reviewHistory`.
   // На сервер нічого не летить, поки не натиснемо "Зарахувати".
+ // --- ЛОГИКА РЕДАКТИРОВАНИЯ (ТЕПЕРЬ ОНЛАЙН) ---
   const toggleWordStatus = (index) => {
-      // Копіюємо масив (React вимагає immutability)
-      const newHistory = [...reviewHistory];
-      const current = newHistory[index].status;
-      
-      // Логіка перемикання по колу:
-      // Вгадав (+1) -> Пропустив (-1) -> Не зараховано (0) -> Вгадав (+1) ...
-      if (current === 'guessed') newHistory[index].status = 'skipped';
-      else if (current === 'skipped') newHistory[index].status = 'none'; 
-      else newHistory[index].status = 'guessed';
-
-      setReviewHistory(newHistory);
+      // Мы больше не меняем setReviewHistory здесь вручную.
+      // Мы говорим серверу: "Эй, переключи статус этого слова!"
+      socket.emit("change_word_status", { roomId, index });
   };
-
+const handleSettingsChange = (key, value) => {
+      const newSettings = { ...settings, [key]: parseInt(value) };
+      // Оптимістичне оновлення (щоб повзунок не лагав)
+      setSettings(newSettings); 
+      // Відправка на сервер
+      socket.emit("update_settings", { roomId, newSettings });
+  };
   // Кнопка "Зарахувати бали"
   // Ми відправляємо ВЕСЬ виправлений список на сервер.
   // Сервер перерахує бали на основі цього списку.
@@ -254,45 +308,126 @@ function GamePage() {
     </div>
   );
 
-  // Основний рендер гри
+ // Основний рендер гри
   return (
     <div style={styles.container}>
+      
+      {/* 1. ПЛАШКА СПЕКТАТОРІВ (Зверху) */}
+      <div style={{
+          backgroundColor: '#333', 
+          padding: '10px 20px', 
+          borderRadius: '10px', 
+          marginBottom: '20px', 
+          display: 'flex', 
+          gap: '15px', 
+          alignItems: 'center',
+          border: '1px solid #555',
+          maxWidth: '90%', 
+          flexWrap: 'wrap'
+      }}>
+          <span style={{color: '#888', fontWeight: 'bold'}}>👀 Глядачі:</span>
+          {teams.spectators && teams.spectators.length > 0 ? (
+              teams.spectators.map(s => (
+                  <span key={s.id} style={{
+                      backgroundColor: '#444', 
+                      padding: '4px 10px', 
+                      borderRadius: '15px', 
+                      fontSize: '0.9em',
+                      color: s.id === socket.id ? '#fff' : '#aaa', 
+                      border: s.id === socket.id ? '1px solid #777' : 'none'
+                  }}>
+                      {s.name}
+                  </span>
+              ))
+          ) : (
+              <span style={{color: '#555', fontStyle: 'italic', fontSize: '0.8em'}}>(пусто)</span>
+          )}
+      </div>
+
+      {/* 2. ІГРОВЕ ПОЛЕ (Три колонки в ряд) */}
       <div style={styles.gameLayout}>
         
         {/* === ЛІВА КОЛОНКА (Червоні) === */}
         <div style={{...styles.teamBox, borderColor: '#ff6b6b'}}>
           <h3 style={{color: '#ff6b6b'}}>🔴 Красные</h3>
           <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[1]}</h1>
-          {/* Список гравців команди 1 */}
           <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team1.map(p => (
-                <div key={p.id} style={{padding:'5px', fontWeight: p.id === nextExplainerId ? 'bold' : 'normal'}}>
-                    😎 {p.name} {p.id === nextExplainerId && ' 🎤'} {/* <--- СТРІЛОЧКА/МІКРОФОН */}
-                </div>
-            ))}
+            {teams.team1.map(p => {
+                const isMe = p.id === socket.id;             
+                const isExplainer = p.id === nextExplainerId; 
+                const isHost = p.id === hostId;
+
+                return (
+                    <div key={p.id} style={{
+                        padding:'10px', 
+                        marginBottom: '8px',
+                        borderRadius: '8px',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '10px',
+                        backgroundColor: isExplainer ? 'rgba(255, 215, 0, 0.15)' : 'transparent', 
+                        border: isExplainer ? '1px solid #ffd700' : '1px solid transparent',     
+                        fontWeight: isMe ? 'bold' : 'normal',
+                        color: isMe ? '#fff' : 'rgba(255,255,255,0.7)',
+                        
+                        // 👇 ВАЖЛИВО ДЛЯ КНОПОК 👇
+                        position: 'relative', 
+                        paddingRight: (socket.id === hostId && !isMe) ? '60px' : '10px'
+                        // 👆 --------------------
+                    }}>
+                        <span style={{width: '20px', textAlign: 'center'}}>{isMe ? '👤' : ''}</span>
+                        <span>{isHost ? '⭐ ' : ''}{p.name}</span>
+                        {isExplainer && <span style={{marginLeft: 'auto'}}>🎤</span>} 
+
+                        {/* КНОПКИ АДМІНА */}
+                        {socket.id === hostId && !isMe && (
+                            <div style={{position: 'absolute', right: '5px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '5px'}}>
+                                <button 
+                                    onClick={() => handleTransferHost(p.id)} 
+                                    title="Зробити хостом"
+                                    style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em'}}
+                                >
+                                    👑
+                                </button>
+                                <button 
+                                    onClick={() => handleKick(p.id)} 
+                                    title="Вигнати"
+                                    style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em'}}
+                                >
+                                    👢
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )
+            })}
           </div>
-          {/* Кнопка вступу (тільки в лобі) */}
-          {gameStatus === 'lobby' && <button style={{...styles.joinBtn, backgroundColor: '#ff6b6b'}} onClick={() => joinTeam(1)}>Вступить</button>}
-        </div>
+            {gameStatus === 'lobby' && <button style={{...styles.joinBtn, backgroundColor: '#ff6b6b'}} onClick={() => joinTeam(1)}>Вступить</button>}
+            </div>  
 
         {/* === ЦЕНТРАЛЬНА ЧАСТИНА (Ігрове поле) === */}
         <div style={{...styles.teamBox, flex: 2, borderColor: 'transparent', background: 'transparent'}}>
           
-          {/* ЕКРАН 1: ЛОБІ (Очікування) */}
+          {/* ЕКРАН 1: ЛОБІ */}
           {gameStatus === 'lobby' && (
             <>
               <p>Код комнаты:</p> <div style={styles.smallRoomCode}>{roomId}</div>
-              <button style={{...styles.joinBtn, backgroundColor: '#ffd700', color: 'black', marginTop: '30px', fontSize: '20px'}} onClick={handleStartGame}>ПОЧАТИ РАУНД 🚀</button>
+              {socket.id === nextExplainerId ? (
+                  <div style={{marginTop: '20px'}}>
+                      <p style={{color: '#ffd700', marginBottom: '10px'}}>Твоя черга пояснювати! 🎤</p>
+                      <button style={{...styles.joinBtn, backgroundColor: '#ffd700', color: 'black', fontSize: '20px'}} onClick={handleStartGame}>ПОЧАТИ РАУНД 🚀</button>
+                  </div>
+              ) : (
+                  <div style={{marginTop: '30px', color: '#888', fontStyle: 'italic'}}>Чекаємо, поки ведучий почне гру... ⏳</div>
+              )}
             </>
           )}
 
+         {/* ЕКРАН 2: ГРА */}
          {gameStatus === 'game' && (
             <div style={styles.card}>
               <div style={{fontSize: '2em', fontWeight: 'bold', color: timeLeft <= 10 ? '#ff4d4d' : '#fff', marginBottom: '10px'}}>⏱ {timeLeft}</div>
-              
-              {/* ПЕРЕВІРКА РОЛІ */}
               {socket.id === activePlayerId ? (
-                  // --- ТИ ПОЯСНЮЄШ (Бачиш все) ---
                   <>
                       <h1 style={{fontSize: '3em', color: '#ffd700', margin: '20px 0'}}>{currentWord}</h1>
                       <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
@@ -302,72 +437,152 @@ function GamePage() {
                       <p style={{color: '#888', marginTop: '10px'}}>Ти пояснюєш! Швидше!</p>
                   </>
               ) : (
-                  // --- ТИ ВГАДУЄШ АБО ДИВИШСЯ ---
                   <>
                       <h1 style={{fontSize: '3em', color: '#555', margin: '20px 0'}}>???</h1>
                       <p style={{fontSize: '1.2em'}}>Зараз пояснює гравець твоєї (або чужої) команди.</p>
                       <p style={{color: '#ffd700'}}>Слухай уважно!</p>
                   </>
               )}
-              
             </div>
           )}
-          {/* ЕКРАН 3: ПЕРЕВІРКА СЛІВ (Review) */}
+
+          {/* ЕКРАН 3: REVIEW */}
           {gameStatus === 'review' && (
               <div style={styles.card}>
                   <h2>Перевірка слів 🧐</h2>
                   <h3 style={{color: '#ffd700'}}>Бали за раунд: {calculateRoundScore()}</h3>
-                  <p style={{fontSize: '0.8em', color: '#888'}}>Натисни на статус, щоб змінити</p>
-                  
                   <div style={{marginTop: '20px', maxHeight: '400px', overflowY: 'auto'}}>
                       {reviewHistory.map((item, index) => (
                           <div key={index} style={styles.wordRow}>
                               <span>{item.word}</span>
-                              
-                              <button 
-                                onClick={() => toggleWordStatus(index)}
-                                style={{
-                                    ...styles.statusBtn,
-                                    // Динамічний колір кнопки залежно від статусу
-                                    backgroundColor: 
-                                        item.status === 'guessed' ? '#4ecdc4' : 
-                                        item.status === 'skipped' ? '#ff6b6b' : '#666',
-                                    color: 'white'
-                                }}
-                              >
-                                {/* Текст кнопки змінюється */}
+                              <button onClick={() => toggleWordStatus(index)} style={{...styles.statusBtn, backgroundColor: item.status === 'guessed' ? '#4ecdc4' : item.status === 'skipped' ? '#ff6b6b' : '#666', color: 'white'}}>
                                 {item.status === 'guessed' ? '+1' : item.status === 'skipped' ? '-1' : '0'}
                               </button>
                           </div>
                       ))}
                   </div>
-
-                  <button 
-                    style={{...styles.button, backgroundColor: '#ffd700', color: 'black', marginTop: '20px'}}
-                    onClick={confirmResults}
-                  >
-                    ЗАРАХУВАТИ БАЛИ ✅
-                  </button>
+                  <button style={{...styles.button, backgroundColor: '#ffd700', color: 'black', marginTop: '20px'}} onClick={confirmResults}>ЗАРАХУВАТИ БАЛИ ✅</button>
               </div>
           )}
-
         </div>
 
-        {/* === ПРАВА КОЛОНКА (Сині) === */}
+       {/* === ПРАВА КОЛОНКА (Сині) === */}
         <div style={{...styles.teamBox, borderColor: '#4ecdc4'}}>
            <h3 style={{color: '#4ecdc4'}}>🔵 Синие</h3>
            <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[2]}</h1>
-           {/* Список гравців команди 2 */}
            <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team1.map(p => (
-                <div key={p.id} style={{padding:'5px', fontWeight: p.id === nextExplainerId ? 'bold' : 'normal'}}>
-                    😎 {p.name} {p.id === nextExplainerId && ' 🎤'} {/* <--- СТРІЛОЧКА/МІКРОФОН */}
-                </div>
-            ))}
+            {teams.team2.map(p => {
+                const isMe = p.id === socket.id;
+                const isExplainer = p.id === nextExplainerId;
+                const isHost = p.id === hostId; // <--- ПЕРЕВІРКА ХОСТА ТУТ ТЕЖ ПОТРІБНА
+
+                return (
+                    <div key={p.id} style={{
+                        padding:'10px', 
+                        marginBottom: '8px',
+                        borderRadius: '8px',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '10px',
+                        backgroundColor: isExplainer ? 'rgba(78, 205, 196, 0.15)' : 'transparent',
+                        border: isExplainer ? '1px solid #4ecdc4' : '1px solid transparent',
+                        fontWeight: isMe ? 'bold' : 'normal',
+                        color: isMe ? '#fff' : 'rgba(255,255,255,0.7)'
+                    }}>
+                        <span style={{width: '20px', textAlign: 'center'}}>{isMe ? '👤' : ''}</span>
+                        {/* ЗІРОЧКА */}
+                        <span>{isHost ? '⭐ ' : ''}{p.name}</span>
+                        {isExplainer && <span style={{marginLeft: 'auto'}}>🎤</span>}
+                    </div>
+                )
+            })}
           </div>
            {gameStatus === 'lobby' && <button style={{...styles.joinBtn, backgroundColor: '#4ecdc4'}} onClick={() => joinTeam(2)}>Вступить</button>}
         </div>
+
       </div>
+
+      {/* --- МІНІ-ПАНЕЛЬ НАЛАШТУВАНЬ (Right Bottom) --- */}
+      {gameStatus === 'lobby' && (
+        <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            backgroundColor: 'rgba(30, 30, 30, 0.9)',
+            padding: '15px',
+            borderRadius: '12px',
+            border: '1px solid #444',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            zIndex: 1000,
+            backdropFilter: 'blur(5px)',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+            minWidth: '140px'
+        }}>
+            {/* ТАЙМЕР */}
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                <span style={{fontSize: '1.2em'}} title="Час раунду">⏱️</span>
+                {socket.id === hostId ? (
+                   <input 
+                      type="range" min="10" max="180" step="10" 
+                      value={settings.roundTime}
+                      onChange={(e) => handleSettingsChange('roundTime', e.target.value)}
+                      style={{width: '70px', cursor: 'pointer', accentColor: '#4ecdc4'}}
+                   />
+                ) : <div style={{flex: 1}}></div>}
+                <span style={{fontWeight: 'bold', minWidth: '25px', textAlign: 'right', color: '#fff'}}>{settings.roundTime}</span>
+            </div>
+
+            {/* ПЕРЕМОГА */}
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                <span style={{fontSize: '1.2em'}} title="Очки для перемоги">🏁</span>
+                {socket.id === hostId ? (
+                   <input 
+                      type="range" min="10" max="100" step="5" 
+                      value={settings.winScore}
+                      onChange={(e) => handleSettingsChange('winScore', e.target.value)}
+                      style={{width: '70px', cursor: 'pointer', accentColor: '#ffd700'}}
+                   />
+                ) : <div style={{flex: 1}}></div>}
+                <span style={{fontWeight: 'bold', minWidth: '25px', textAlign: 'right', color: '#fff'}}>{settings.winScore}</span>
+            </div>
+            
+            {/* ЗАМОК БЛОКУВАННЯ КОМАНД */}
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px'}}>
+                <span style={{fontSize: '1.2em'}} title="Доступ до команд">🔐</span>
+                
+                {socket.id === hostId ? (
+                   <button 
+                      onClick={handleToggleLock}
+                      style={{
+                          flex: 1, 
+                          padding: '5px', 
+                          borderRadius: '5px', 
+                          border: 'none', 
+                          cursor: 'pointer',
+                          backgroundColor: isLocked ? '#ff6b6b' : '#4ecdc4',
+                          color: '#fff',
+                          fontWeight: 'bold'
+                      }}
+                   >
+                      {isLocked ? 'ЗАКРИТО' : 'ВІДКРИТО'}
+                   </button>
+                ) : (
+                    <span style={{color: isLocked ? '#ff6b6b' : '#4ecdc4', fontSize: '0.9em'}}>
+                        {isLocked ? 'Закрито' : 'Відкрито'}
+                    </span>
+                )}
+            </div>
+            
+            {socket.id === hostId && (
+                <div style={{fontSize: '0.7em', color: '#666', textAlign: 'center', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                    Host Control
+                </div>
+            )}
+        </div>
+      )}
+
     </div>
   )
 }
