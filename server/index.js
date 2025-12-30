@@ -5,6 +5,7 @@ const express = require('express'); // Фреймворк для веб-серв
 const http = require('http');       // Стандартний модуль Node.js для HTTP (потрібен для Socket.io)
 const { Server } = require("socket.io"); // Бібліотека для веб-сокетів (real-time зв'язок)
 const cors = require('cors');       // Дозволяє запити з інших доменів (наприклад, з твого React на localhost:3000)
+const { WORD_PACKS } = require('./words');
 
 const app = express();
 app.use(cors()); // Дозволяємо всім стукатись на сервер
@@ -85,7 +86,8 @@ io.on('connection', (socket) => {
             isLocked: false,
             settings: {        // <--- ⚙️ НАЛАШТУВАННЯ
                 roundTime: 60,
-                winScore: 30
+                winScore: 30,
+                difficulty: 'normal'
             },
             team1: [],
             team2: [],
@@ -160,59 +162,64 @@ io.on('connection', (socket) => {
             }
         }
     });
-   // 3. СТАРТ РАУНДУ (З ВИБОРОМ ГРАВЦЯ)
-    socket.on("request_start", ({roomId}) => {
+   // --- 7. ПОЧАТОК РАУНДУ (ВСТАВ ЦЕЙ БЛОК) ---
+    socket.on("request_start", ({ roomId }) => {
         const room = rooms[roomId];
-        if (room) {
-            // Перевірка: чи є взагалі гравці в активній команді?
+        
+        // Перевірка: чи існує кімната і чи натиснув ведучий (або хост)
+        // (Тут дозволяємо натискати nextExplainerId, бо він бачить кнопку)
+        if (room && (socket.id === room.nextExplainerId || socket.id === room.hostId)) {
+            
+            // Перевірка на наявність гравців
             const currentTeamArray = room.currentTeam === 1 ? room.team1 : room.team2;
-            if (currentTeamArray.length === 0) return; // Не можна почати без гравців
+            if (currentTeamArray.length === 0) return;
 
             if (room.timer) clearInterval(room.timer);
-            
-            // --- ВИБІР ПОЯСНЮВАЧА ---
-            // Беремо індекс для поточної команди
+
+            // --- ВИЗНАЧЕННЯ ВЕДУЧОГО ---
             let playerIndex = room.currentTeam === 1 ? room.team1Index : room.team2Index;
-            
-            // Захист: якщо гравців стало менше, ніж індекс (хтось вийшов), скидаємо на 0
             if (playerIndex >= currentTeamArray.length) {
                 playerIndex = 0;
                 if (room.currentTeam === 1) room.team1Index = 0;
                 else room.team2Index = 0;
             }
-
             const explainer = currentTeamArray[playerIndex];
-            room.activePlayerId = explainer.id; // <--- Запам'ятовуємо ID головного
-            
-            console.log(`Раунд почав: ${explainer.name} (Команда ${room.currentTeam})`);
-            // -------------------------
+            room.activePlayerId = explainer.id;
+            // ----------------------------
 
             room.status = 'game';
-            
-            // 👇 НОВЕ: БЛОКУЄМО КІМНАТУ 👇
-            room.isLocked = true; 
-            // 👆 -----------------------
-
+            room.isLocked = true; // Блокуємо вхід
             room.roundHistory = []; 
             room.roundScore = 0;    
             
-            // (Тут твоя логіка слів...)
-            const wordsList = ["Київ", "Яблуко", "Зеленський", "Код", "Машина", "Сонце", "Кава", "Кіт", "Інтернет", "Реактор", "Борщ", "Сало", "Мрія", "Дніпро"]; 
-            room.deck = shuffleArray([...wordsList]); 
+            // 👇 ЛОГІКА СЛІВ (З урахуванням складності) 👇
+            if (!room.deck || room.deck.length === 0) {
+                try {
+                    const difficulty = (room.settings && room.settings.difficulty) ? room.settings.difficulty : 'normal';
+                    // Беремо пак або фолбек на normal
+                    const pack = (WORD_PACKS && WORD_PACKS[difficulty]) ? WORD_PACKS[difficulty] : ["Error", "No", "Words"];
+                    
+                    room.deck = shuffleArray([...pack]);
+                    console.log(`Deck reloaded: ${difficulty}, words: ${room.deck.length}`);
+                } catch (e) {
+                    console.error("Error loading words:", e);
+                    room.deck = ["Error", "Loading", "Words"]; 
+                }
+            }
+            // 👆 -----------------------
             
             const firstWord = room.deck.pop();
             room.currentWord = firstWord; 
             room.timeLeft = room.settings.roundTime; 
 
-            // 👇 НОВЕ: ОНОВЛЮЄМО ВСІХ, ЩОБ ЗНИКЛИ КНОПКИ "ВСТУПИТИ" 👇
-            // Це обов'язково, інакше клієнт не дізнається, що room.isLocked тепер true
+            // Оновлюємо всіх (статус, замок)
             io.to(roomId).emit("update_teams", getSafeRoom(room));
-            // 👆 ----------------------------------------------------
-
-            // Відправляємо старт + ID того, хто пояснює
+            
+            // Старт гри
             io.to(roomId).emit("game_started", { word: firstWord, explainerId: room.activePlayerId });
             io.to(roomId).emit("timer_update", room.timeLeft);
 
+            // Таймер
             room.timer = setInterval(() => {
                 room.timeLeft--; 
                 io.to(roomId).emit("timer_update", room.timeLeft);
@@ -229,19 +236,29 @@ io.on('connection', (socket) => {
         }
     });
 
-   // --- ЗМІНА НАЛАШТУВАНЬ (Тільки Хост) ---
-    socket.on("update_settings", ({ roomId, newSettings }) => {
+// --- ЗМІНА НАЛАШТУВАНЬ ---
+    socket.on("update_settings", ({ roomId, key, value }) => {
         const room = rooms[roomId];
+        
         // Перевіряємо: кімната існує І запит від хоста
         if (room && socket.id === room.hostId) {
-            room.settings = { ...room.settings, ...newSettings };
             
-            // Якщо змінюється час, оновлюємо візуально таймер в лобі
-            if (room.status === 'lobby' && newSettings.roundTime) {
-                room.timeLeft = newSettings.roundTime;
+            // 1. Оновлюємо саме те налаштування, яке прийшло
+            room.settings[key] = value;
+
+            // 2. СПЕЦІАЛЬНА ЛОГІКА: Якщо змінили складність
+            if (key === 'difficulty') {
+                room.deck = []; // ❗ Очищаємо колоду, щоб наступного разу завантажився новий пак слів
+                console.log(`Room ${roomId}: Difficulty changed to ${value}, deck cleared.`);
+            }
+
+            // 3. СПЕЦІАЛЬНА ЛОГІКА: Якщо змінили час раунду в лобі
+            if (key === 'roundTime' && room.status === 'lobby') {
+                room.timeLeft = value;
                 io.to(roomId).emit("timer_update", room.timeLeft);
             }
 
+            // 4. Відправляємо оновлення всім
             io.to(roomId).emit("update_teams", getSafeRoom(room));
         }
     });
@@ -499,17 +516,20 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- ПЕРЕМІШУВАННЯ ГРАВЦІВ ---
+  // --- ПЕРЕМІШУВАННЯ ГРАВЦІВ (SHUFFLE) ---
     socket.on("shuffle_teams", ({ roomId }) => {
         const room = rooms[roomId];
         
-        // Перевіряємо: Хост + Замок ВІДКРИТИЙ (якщо закрито - не можна мішати)
+        // Перевіряємо: Хост + Замок ВІДКРИТИЙ
         if (room && socket.id === room.hostId && !room.isLocked) {
             
-            // 1. Збираємо всіх гравців з команд в одну купу (глядачів не чіпаємо)
+            // 1. Збираємо всіх активних гравців
             const allPlayers = [...room.team1, ...room.team2];
             
-            // 2. Перемішуємо масив (використовуємо твою функцію shuffleArray)
+            // Якщо гравців менше 2, немає сенсу мішати
+            if (allPlayers.length < 2) return;
+
+            // 2. Перемішуємо масив
             const shuffled = shuffleArray(allPlayers);
             
             // 3. Ділимо навпіл
@@ -517,12 +537,13 @@ io.on('connection', (socket) => {
             room.team1 = shuffled.slice(0, half);
             room.team2 = shuffled.slice(half);
             
-            // 4. Скидаємо ролі ведучих, бо склади змінилися
+            // 4. Скидаємо ролі ведучих (черга обнуляється)
             room.team1Index = 0;
             room.team2Index = 0;
             room.activePlayerId = null;
-            room.nextExplainerId = null;
+            room.nextExplainerId = null; // Ніхто не пояснює, треба чекати старту
 
+            // 5. Відправляємо всім оновлені списки
             io.to(roomId).emit("update_teams", getSafeRoom(room));
         }
     });
