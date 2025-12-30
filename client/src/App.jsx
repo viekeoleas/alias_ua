@@ -180,19 +180,7 @@ function GamePage() {
     // Оновлення рахунку в реальному часі
     socket.on("update_score", (newScore) => setScore(newScore));
 
-    socket.on("update_teams", (updatedTeams) => {
-      setTeams(updatedTeams);
-      setNextExplainerId(updatedTeams.nextExplainerId);
-      if (updatedTeams.hostId) setHostId(updatedTeams.hostId);
-      if (updatedTeams.settings) setSettings(updatedTeams.settings);
-      
-      // 👇 НОВЕ
-      if (updatedTeams.isLocked !== undefined) setIsLocked(updatedTeams.isLocked);
-      
-      if (updatedTeams.status === 'game') setGameStatus('game');
-      // ...
-    });
-
+  
     socket.on("kicked", () => {
         alert("Вас було виключено з кімнати хостом.");
         window.location.href = "/"; // Викидаємо на головну
@@ -278,6 +266,7 @@ function GamePage() {
       }
   };
 
+  
   const handleShuffle = () => {
       if (!isLocked) {
           socket.emit("shuffle_teams", { roomId });
@@ -293,11 +282,13 @@ function GamePage() {
       socket.emit("change_word_status", { roomId, index });
   };
 const handleSettingsChange = (key, value) => {
-      const newSettings = { ...settings, [key]: parseInt(value) };
-      // Оптимістичне оновлення (щоб повзунок не лагав)
-      setSettings(newSettings); 
-      // Відправка на сервер
-      socket.emit("update_settings", { roomId, newSettings });
+      // Якщо це число (час/очки), перетворюємо в Number, інакше лишаємо як є
+      const finalValue = (key === 'difficulty') ? value : Number(value);
+      
+      // Оновлюємо локально для миттєвої реакції (опціонально)
+      setSettings(prev => ({ ...prev, [key]: finalValue }));
+      
+      socket.emit("update_settings", { roomId, key, value: finalValue });
   };
   // Кнопка "Зарахувати бали"
   // Ми відправляємо ВЕСЬ виправлений список на сервер.
@@ -729,6 +720,36 @@ const handleSettingsChange = (key, value) => {
                     </button>
                 </div>
             )}
+            {/* 👇 ВИБІР СКЛАДНОСТІ 👇 */}
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
+                <span style={{fontSize: '1em', color: '#888'}}>Diff</span>
+                
+                {socket.id === hostId ? (
+                   <select 
+                      value={settings.difficulty || 'normal'}
+                      onChange={(e) => handleSettingsChange('difficulty', e.target.value)}
+                      style={{
+                          flex: 1,
+                          padding: '5px',
+                          borderRadius: '5px',
+                          border: 'none',
+                          backgroundColor: '#333',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          textAlign: 'right'
+                      }}
+                   >
+                       <option value="easy">Easy</option>
+                       <option value="normal">Norm</option>
+                       <option value="hard">Hard</option>
+                   </select>
+                ) : (
+                    <span style={{fontWeight: 'bold', color: '#ffd700', textTransform: 'capitalize'}}>
+                        {settings.difficulty || 'normal'}
+                    </span>
+                )}
+            </div>
             </div>
         </div>
       )}
