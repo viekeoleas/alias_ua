@@ -106,6 +106,7 @@ function GamePage() {
   const [settings, setSettings] = useState({ roundTime: 60, winScore: 30 }); // <--- Налаштування
   const [isLocked, setIsLocked] = useState(false); // <--- Стан замочка
   const [winner, setWinner] = useState(null); // 1, 2 або 'draw'
+  const [liveHistory, setLiveHistory] = useState([]); // <--- Історія поточного раунду
   // ЕФЕКТ 1: Перевірка LocalStorage при першому вході
   // Якщо гравець оновив сторінку, ми намагаємось згадати його ім'я
   useEffect(() => {
@@ -139,8 +140,7 @@ function GamePage() {
         }
         // ---------------------------
     }
-    
-    // ... далі твої socket.on без змін ...
+
     
     // --- СЛУХАЧІ ПОДІЙ ВІД СЕРВЕРА ---
     
@@ -169,8 +169,12 @@ function GamePage() {
         setGameStatus('game');
         setCurrentWord(word);
         setActivePlayerId(explainerId); // <--- Запам'ятовуємо, хто бос
+        setLiveHistory([]);
     });
-
+    // Оновлення живої історії слів під час раунду
+    socket.on("update_live_history", (history) => {
+        setLiveHistory(history);
+    });
     // Оновлення слова (коли натиснули "Вгадав" або "Пропустив")
     socket.on("update_word", (newWord) => setCurrentWord(newWord));
     
@@ -488,6 +492,44 @@ const handleSettingsChange = (key, value) => {
                       <p style={{color: '#ffd700'}}>Слухай уважно!</p>
                   </>
               )}
+
+              {/* 👇👇👇 НОВИЙ БЛОК: ЖИВА ІСТОРІЯ СЛІВ 👇👇👇 */}
+              {liveHistory.length > 0 && (
+                  <div style={{
+                      marginTop: '20px',
+                      borderTop: '1px solid #444',
+                      paddingTop: '10px',
+                      textAlign: 'left',
+                      maxHeight: '150px', // Обмежена висота
+                      overflowY: 'auto',  // Прокрутка
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '5px'
+                  }}>
+                      <div style={{fontSize: '0.9em', color: '#888', marginBottom: '5px', textAlign: 'center'}}>Історія раунду:</div>
+                      
+                      {/* Відображаємо у зворотному порядку (нові зверху) */}
+                      {[...liveHistory].reverse().map((item, idx) => (
+                          <div key={idx} style={{
+                              display: 'flex', 
+                              justifyContent: 'space-between',
+                              padding: '5px 10px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(255,255,255,0.05)',
+                              alignItems: 'center'
+                          }}>
+                              <span style={{color: '#ddd'}}>{item.word}</span>
+                              <span style={{
+                                  fontWeight: 'bold',
+                                  color: item.status === 'guessed' ? '#4ecdc4' : '#ff6b6b'
+                              }}>
+                                  {item.status === 'guessed' ? '+1' : '-1'}
+                              </span>
+                          </div>
+                      ))}
+                  </div>
+              )}
+              {/* 👆👆👆 ---------------------------------- 👆👆👆 */}
             </div>
           )}
 

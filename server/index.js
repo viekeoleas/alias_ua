@@ -141,7 +141,7 @@ io.on('connection', (socket) => {
                     room.spectators.push({ id: socket.id, name: safeName });
                 }
             }
-
+            socket.emit("update_live_history", room.roundHistory);
             // Оновлюємо всіх
             io.to(roomId).emit("update_teams", getSafeRoom(room)); 
             
@@ -265,27 +265,25 @@ io.on('connection', (socket) => {
     // --- 4. ОБРОБКА СЛІВ (Вгадав / Пропустив) ---
     socket.on("next_word", ({roomId, action}) => {
         const room = rooms[roomId];
-        // Приймаємо команди тільки якщо йде гра
         if (room && room.status === 'game') {
-            // Записуємо результат попереднього слова
             room.roundHistory.push({ word: room.currentWord, status: action });
             
-            // Оновлюємо тимчасовий рахунок раунду
             if (action === 'guessed') room.roundScore++;
             if (action === 'skipped') room.roundScore--;
 
-            // Рахуємо "живий" рахунок, щоб показувати динаміку, але ще не записуємо його "навічно"
             const liveScore = { ...room.score };
             liveScore[room.currentTeam] += room.roundScore;
             io.to(roomId).emit("update_score", liveScore);
+            
+            // 👇 НОВЕ: ВІДПРАВЛЯЄМО ЖИВУ ІСТОРІЮ ВСІМ 👇
+            io.to(roomId).emit("update_live_history", room.roundHistory);
+            // 👆 ---------------------------------------
 
-            // Якщо слова ще є
             if (room.deck.length > 0) {
                 const nextWord = room.deck.pop();
                 room.currentWord = nextWord;
                 io.to(roomId).emit("update_word", nextWord);
             } else {
-                // Якщо слова закінчились раніше часу - кінець раунду
                 clearInterval(room.timer);
                 room.status = 'review';
                 io.to(roomId).emit("round_ended", room.roundHistory);
