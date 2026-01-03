@@ -380,7 +380,7 @@ const handleSettingsChange = (key, value) => {
         
         {/* === ЛІВА КОЛОНКА (Червоні) === */}
         <div style={{...styles.teamBox, borderColor: '#ff6b6b'}}>
-          <h3 style={{color: '#ff6b6b'}}>🔴 Красные</h3>
+          <h3 style={{color: '#ff6b6b'}}>🔴 Черовоні</h3>
           <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[1]}</h1>
           <div style={{textAlign: 'left', margin: '20px'}}>
             {teams.team1.map(p => {
@@ -460,7 +460,7 @@ const handleSettingsChange = (key, value) => {
           {/* ЕКРАН 1: ЛОБІ */}
           {gameStatus === 'lobby' && (
             <>
-              <p>Код комнаты:</p> <div style={styles.smallRoomCode}>{roomId}</div>
+              <p>Код кімнати:</p> <div style={styles.smallRoomCode}>{roomId}</div>
               {socket.id === nextExplainerId ? (
                   <div style={{marginTop: '20px'}}>
                       <p style={{color: '#ffd700', marginBottom: '10px'}}>Твоя черга пояснювати! 🎤</p>
@@ -585,7 +585,7 @@ const handleSettingsChange = (key, value) => {
 
        {/* === ПРАВА КОЛОНКА (Сині) === */}
         <div style={{...styles.teamBox, borderColor: '#4ecdc4'}}>
-           <h3 style={{color: '#4ecdc4'}}>🔵 Синие</h3>
+           <h3 style={{color: '#4ecdc4'}}>🔵 Сині </h3>
            <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[2]}</h1>
            <div style={{textAlign: 'left', margin: '20px'}}>
             {teams.team2.map(p => {
