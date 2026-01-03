@@ -22,6 +22,29 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+discordChip: {
+    position: 'fixed',
+    top: '20px',
+    right: '20px',       // <--- Замість left і transform ставимо right
+    zIndex: 9999,
+    backgroundColor: '#5865F2',
+    color: 'white',
+    padding: '5px 10px',
+    borderRadius: '30px',
+    textDecoration: 'none',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    boxShadow: '0 5px 20px rgba(0,0,0,0.3)', // Трішки темніша тінь
+    cursor: 'pointer',
+    border: '1px solid rgba(255,255,255,0.1)',
+    transition: 'transform 0.2s', // Важливо для плавності
+    // transform: 'translateX(-50%)' <--- ЦЕЙ РЯДОК ТРЕБА БУЛО ПРИБРАТИ
+  },
+
+
   card: {
     backgroundColor: '#2a2a2a',
     padding: '40px',
@@ -37,16 +60,66 @@ const styles = {
   title: { fontSize: '3em', fontWeight: 'bold', marginBottom: '10px', background: '-webkit-linear-gradient(45deg, #646cff, #a56eff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' },
   button: { backgroundColor: '#646cff', color: 'white', border: 'none', padding: '15px 30px', fontSize: '18px', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', width: '100%', marginTop: '10px' },
   input: { padding: '15px', borderRadius: '8px', border: '1px solid #555', backgroundColor: '#333', color: 'white', fontSize: '16px', width: '100%', marginBottom: '20px', outline: 'none' },
-  gameLayout: { 
-    display: 'flex', 
-    flexDirection: 'row', 
-    flexWrap: 'wrap',
-    justifyContent: 'center', 
-    gap: '20px', 
-    width: '98%', 
-    maxWidth: '1400px', 
-    alignItems: 'flex-start' 
-},
+// ... твои старые стили (container, card, title и т.д.) ...
+
+  // 👇 НОВЫЕ СТИЛИ ДЛЯ МАКЕТА
+  mainGrid: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start', // Выравнивание по верху
+    width: '100%',
+    maxWidth: '1600px', // Ограничиваем ширину на больших экранах
+    padding: '20px',
+    gap: '20px',
+    flexWrap: 'wrap', // Чтобы на мобильных падало в столбик
+  },
+
+sideColumn: {
+      flex: '1',
+      maxWidth: '320px', // 👇 ОБМЕЖИЛИ ШИРИНУ КОЛОНКИ (було minWidth, додали max)
+      minWidth: '250px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '20px'
+  },
+
+  centerColumn: {
+      flex: '0 0 700px', // 👇 ЗБІЛЬШИЛИ ШИРИНУ ЦЕНТРУ (було 500px, стало 700px)
+      minWidth: '320px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      order: 0 
+  },
+  // В teamBox можно убрать лишние flex параметры, так как теперь за это отвечает колонка
+  teamBox: { 
+    backgroundColor: '#2a2a2a', 
+    padding: '20px', 
+    borderRadius: '15px', 
+    width: '100%', // Растягиваем на всю ширину колонки
+    textAlign: 'center', 
+    border: '2px solid #444',
+    display: 'flex',        
+    flexDirection: 'column', 
+    justifyContent: 'space-between',
+    position: 'relative',
+    minHeight: '250px' // Минимальная высота карточки
+  },
+
+
+  teamBox: { 
+    backgroundColor: '#2a2a2a', 
+    padding: '20px', 
+    borderRadius: '15px', 
+    textAlign: 'center', 
+    border: '2px solid #444',
+    display: 'flex',        
+    flexDirection: 'column', 
+    justifyContent: 'space-between',
+    position: 'relative' // Для позиціонування бейджика Active
+  },
   teamBox: { backgroundColor: '#2a2a2a', padding: '20px', borderRadius: '15px', flex: 1, minHeight: '300px',minWidth: '300px',  textAlign: 'center', border: '2px solid #444' },
   joinBtn: { marginTop: '15px', padding: '10px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', color: 'white', width: '100%' },
   smallRoomCode: { fontSize: '2em', fontWeight: 'bold', color: '#ffc107', margin: '10px 0', fontFamily: 'monospace' },
@@ -70,38 +143,59 @@ const styles = {
       minWidth: '40px'
   }
 };
-
+// --- КОМПОНЕНТ: КНОПКА DISCORD ---
+const DiscordButton = () => (
+    <a 
+        href="https://discord.gg/GFUGZQg2" // <--- ВСТАВ СЮДИ СВОЄ ПОСИЛАННЯ
+        target="_blank" 
+        rel="noopener noreferrer"
+        style={styles.discordChip}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+    >
+        {/* Іконка Discord (SVG) */}
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/>
+        </svg>
+        <span>Community</span>
+    </a>
+);
+// --- КОМПОНЕНТ: СТАРТОВА СТОРІНКА ---
 // --- КОМПОНЕНТ: СТАРТОВА СТОРІНКА ---
 function StartPage() {
-  const navigate = useNavigate(); // Хук для переходу на інші сторінки
+  const navigate = useNavigate(); 
 
-  // Відправляємо сигнал на сервер: "Хочу створити кімнату"
   const createRoom = () => socket.emit("create_room");
 
-  // Слухаємо відповідь сервера. Виконується 1 раз при завантаженні сторінки.
   useEffect(() => { 
       socket.on("room_created", (roomId) => {
-          // Коли сервер дав ID, ми перекидаємо користувача на сторінку гри
           navigate(`/game/${roomId}`)
       }); 
   }, []);
 
+  // 👇 ОСТАВЬ ТОЛЬКО ОДИН RETURN
   return (
     <div style={styles.container}>
+      
+      {/* 1. Вставляем кнопку Дискорда СЮДА */}
+      <DiscordButton />
+
       <div style={styles.card}>
         <h1 style={styles.title}>Alias</h1>
+        {/* 2. Оставляем твою кнопку создания игры */}
         <button style={styles.button} onClick={createRoom}>Створити нову гру</button>
       </div>
     </div>
   )
 }
 
+
 // --- КОМПОНЕНТ: СТОРІНКА ГРИ (Основна логіка) ---
 function GamePage() {
   const { roomId } = useParams(); // Витягуємо ID кімнати з URL (напр. /game/X7A1)
   
   // 1. СТАНИ (React State) - це "пам'ять" компонента
-  const [teams, setTeams] = useState({ team1: [], team2: [] }); // Списки гравців
+  const [teams, setTeams] = useState({ teams: [] }); // Списки гравців
   const [score, setScore] = useState({ 1: 0, 2: 0 });          // Рахунок
   const [nickname, setNickname] = useState("");                // Ім'я поточного гравця
   const [isNameSet, setIsNameSet] = useState(false);           // Чи ввів гравець ім'я?
@@ -157,6 +251,9 @@ function GamePage() {
    socket.on("update_teams", (updatedTeams) => {
       setTeams(updatedTeams);
       setNextExplainerId(updatedTeams.nextExplainerId);
+      if (updatedTeams.activePlayerId) {
+          setActivePlayerId(updatedTeams.activePlayerId);
+      }
       if (updatedTeams.hostId) setHostId(updatedTeams.hostId);
       if (updatedTeams.settings) setSettings(updatedTeams.settings);
       if (updatedTeams.isLocked !== undefined) setIsLocked(updatedTeams.isLocked);
@@ -192,10 +289,19 @@ function GamePage() {
     // Синхронізація таймера (сервер тікає, клієнт відображає)
     socket.on("timer_update", (time) => setTimeLeft(time));
     
-    // Оновлення рахунку в реальному часі
-    socket.on("update_score", (newScore) => setScore(newScore));
+   // Оновлення рахунку в реальному часі
+    socket.on("update_score", (scoreArray) => {
+        setTeams(prev => {
+            if (!prev.teams) return prev;
+            // Створюємо копію масиву команд
+            const newTeamsList = prev.teams.map((team, index) => ({
+                ...team,
+                score: scoreArray[index] // Оновлюємо рахунок конкретної команди
+            }));
+            return { ...prev, teams: newTeamsList };
+        });
+    });
 
-  
     socket.on("kicked", () => {
         alert("Вас було виключено з кімнати хостом.");
         window.location.href = "/"; // Викидаємо на головну
@@ -246,13 +352,11 @@ function GamePage() {
   };
 
  // Вступ до команди
-  const joinTeam = (teamId) => {
-      // Запам'ятовуємо команду І поточну кімнату
-      localStorage.setItem("alias_saved_team", teamId);
-      localStorage.setItem("alias_saved_room", roomId); 
-      
-      socket.emit("join_team", { roomId, team: teamId, name: nickname });
-  };
+    const joinTeam = (index) => {
+    localStorage.setItem("alias_saved_team", index);
+    localStorage.setItem("alias_saved_room", roomId); 
+    socket.emit("join_team", { roomId, teamIndex: index, name: nickname }); // <-- teamIndex
+};
 
   const joinSpectators = () => {
       if (!isLocked) {
@@ -345,622 +449,318 @@ const handleSetExplainer = (targetId) => {
                 value={nickname} 
                 onChange={(e) => setNickname(e.target.value)} 
             />
-            <button style={styles.button} onClick={handleNameSubmit}>Войти в игру</button>
+            <button style={styles.button} onClick={handleNameSubmit}>Увійти в гру</button>
         </div>
     </div>
   );
+// --- ЛОГІКА ДЛЯ 3-Х КОЛОНОК (Вставити перед return) ---
+  
+  // 1. Розділяємо команди: парні (0, 2) - зліва, непарні (1, 3) - справа
+  const leftTeams = teams.teams ? teams.teams.filter((_, i) => i % 2 === 0) : [];
+  const rightTeams = teams.teams ? teams.teams.filter((_, i) => i % 2 !== 0) : [];
 
- // Основний рендер гри
+  // 2. Функція для рендеру однієї картки команди (щоб не писати це двічі)
+  const renderTeamCard = (team) => {
+      // Знаходимо реальний індекс команди (для joinTeam)
+      const realIndex = teams.teams.findIndex(t => t.id === team.id);
+      const isActiveTeam = realIndex === teams.currentTeamIndex;
+
+      return (
+        <div key={team.id} style={{
+            ...styles.teamBox, 
+            borderColor: team.color,
+            opacity: (gameStatus === 'game' && !isActiveTeam) ? 0.6 : 1
+        }}>    
+            <h3 style={{color: team.color, margin: '0 0 10px 0'}}>{team.name}</h3>
+            <h1 style={{fontSize: '4em', margin: '0 0 20px 0', lineHeight: 1}}>{team.score}</h1>
+            
+            <div style={{textAlign: 'left', marginBottom: '20px', flex: 1}}>
+                {team.players.map(p => {
+                    const isMe = p.id === socket.id;             
+                    const isHost = p.id === hostId;
+                    const iAmHost = socket.id === hostId;
+                    const isRoundActive = gameStatus === 'game' || gameStatus === 'paused';
+                    const isExplainer = isRoundActive ? p.id === activePlayerId : p.id === nextExplainerId;
+
+                    return (
+                        <div key={p.id} style={{
+                            padding:'10px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            color: isExplainer ? team.color : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
+                            background: isExplainer ? `linear-gradient(90deg, ${team.color}22 0%, transparent 100%)` : 'transparent'
+                        }}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden'}}>
+                                {isExplainer && <span style={{fontSize: '0.8em'}}>▶</span>}
+                                {p.id === hostId && <span>👑</span>}
+                                <span style={{fontWeight: isMe ? 'bold' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px'}}>{p.name}</span>
+                            </div>
+
+                            {iAmHost && (
+                                <div style={{display: 'flex', gap: '5px'}}>
+                                    {!isRoundActive && !isExplainer && (
+                                        <button onClick={() => handleSetExplainer(p.id)} title="Ведучий" style={{background: 'none', border: '1px solid #4ecdc4', borderRadius: '50%', width: '20px', height: '20px', color: '#4ecdc4', fontSize: '0.6em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>▶</button>
+                                    )}
+                                    {!isRoundActive && !isMe && (
+                                        <button onClick={() => handleTransferHost(p.id)} title="Хост" style={{background: 'none', border: '1px solid #ffd700', borderRadius: '50%', width: '20px', height: '20px', color: '#ffd700', fontSize: '0.7em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>♕</button>
+                                    )}
+                                    {!isMe && (
+                                        <button onClick={() => handleKick(p.id)} title="Кік" style={{background: 'none', border: '1px solid #ff4d4d', borderRadius: '50%', width: '20px', height: '20px', color: '#ff4d4d', fontSize: '0.7em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>✕</button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+
+            {/* КНОПКА СТАРТУ */}
+            {gameStatus === 'lobby' && isActiveTeam && team.players.length > 0 && (
+                <div style={{marginTop: 'auto'}}>
+                    <div style={{fontSize: '0.9em', color: '#888', marginBottom: '5px'}}>
+                        Наступний: <b style={{color: '#fff'}}>{
+                            team.players.find(p => p.id === nextExplainerId)?.name || "..."
+                        }</b>
+                    </div>
+                    {(socket.id === hostId || socket.id === nextExplainerId) ? (
+                        <button onClick={handleStartGame} style={{backgroundColor: '#ffd700', color: 'black', border: 'none', padding: '12px', fontSize: '1.1em', fontWeight: 'bold', borderRadius: '30px', cursor: 'pointer', width: '100%', boxShadow: '0 0 15px rgba(255, 215, 0, 0.4)', animation: 'pulse 2s infinite'}}>▶ ПОЧАТИ</button>
+                    ) : (
+                        <div style={{padding: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '0.9em'}}>Чекаємо старту... ⏳</div>
+                    )}
+                </div>
+            )}
+
+            {gameStatus === 'lobby' && !isLocked && (
+                <button style={{...styles.joinBtn, backgroundColor: team.color, marginTop: '15px'}} onClick={() => joinTeam(realIndex)}>Вступити</button>
+            )}
+        </div>
+      );
+  };
+  /*основний рендер */
   return (
     <div style={styles.container}>
+      <DiscordButton />
       
-      {/* 1. ПЛАШКА СПЕКТАТОРІВ (Зверху) */}
+      {/* 1. ПЛАШКА СПЕКТАТОРІВ */}
       <div 
-          onClick={joinSpectators} // <--- КЛІК СЮДИ
+          onClick={joinSpectators}
           title={!isLocked ? "Натисніть, щоб стати глядачем" : "Заблоковано"}
           style={{
-            marginBottom: '20px', 
-            color: '#666', 
-            fontSize: '0.9em',
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            cursor: isLocked ? 'not-allowed' : 'pointer', // <--- КУРСОР РУКИ
-            padding: '5px',
-            borderRadius: '5px',
-            transition: 'background 0.2s',
-            // Легка підсвітка при наведенні (можна через CSS, але тут спрощено)
-            border: '1px solid transparent',
+            marginBottom: '10px', color: '#666', fontSize: '0.9em', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', cursor: isLocked ? 'not-allowed' : 'pointer', padding: '5px', borderRadius: '5px', transition: 'background 0.2s', border: '1px solid transparent', zIndex: 10
           }}
           onMouseEnter={(e) => !isLocked && (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)')}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
       >
           <span>👀 Spectators:</span>
-          
           {teams.spectators && teams.spectators.length > 0 ? (
               teams.spectators.map(s => (
-                  <span key={s.id} style={{
-                      color: s.id === socket.id ? '#fff' : '#888',
-                      fontWeight: s.id === socket.id ? 'bold' : 'normal'
-                  }}>
+                  <span key={s.id} style={{color: s.id === socket.id ? '#fff' : '#888', fontWeight: s.id === socket.id ? 'bold' : 'normal'}}>
                       {s.name}
                   </span>
               ))
           ) : (
               <span>(click to join)</span>
           )}
-
       </div>
 
-      {/* 2. ІГРОВЕ ПОЛЕ (Три колонки в ряд) */}
-      <div style={styles.gameLayout}>
-        
-        {/* === ЛІВА КОЛОНКА (Червоні) === */}
-        <div style={{...styles.teamBox, borderColor: '#ff6b6b'}}>
-          <h3 style={{color: '#ff6b6b'}}>🔴 Черовоні</h3>
-          <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[1]}</h1>
-          <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team1.map(p => {
-                const isMe = p.id === socket.id;             
-                const isHost = p.id === hostId;
-                const iAmHost = socket.id === hostId;
-                const isRoundActive = gameStatus === 'game' || gameStatus === 'paused';
-                // 👇 ВИПРАВЛЕНА ЛОГІКА (Сувора перевірка)
-                const isExplainer = (gameStatus === 'game' || gameStatus === 'paused') 
-                    ? p.id === activePlayerId 
-                    : p.id === nextExplainerId;
-
-                return (
-                    <div key={p.id} style={{
-                        padding:'12px 5px', 
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between', 
-                        gap: '10px',
-                        color: isExplainer ? '#cd4e69ff' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'), // Бірюзовий для ведучого
-                        fontWeight: isMe ? 'bold' : 'normal',
-                        transition: 'all 0.3s',
-                        background: isExplainer ? 'linear-gradient(90deg, rgba(205, 78, 78, 0.1) 0%, transparent 100%)' : 'transparent' // Легкий градієнт
-                    }}>
-                        {/* ІМ'Я + СТРІЛКА */}
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden'}}>
-                             
-                             {/* 👇 ВЕДУЧИЙ: CSS СТРІЛКА (Замість жовтого круга) */}
-                             {isExplainer ? (
-                                 <div style={{
-                                     width: 0, 
-                                     height: 0, 
-                                     borderTop: '6px solid transparent',
-                                     borderBottom: '6px solid transparent',
-                                     borderLeft: '10px solid #cd4e4eff', // Колір стрілки
-                                     marginRight: '5px'
-                                 }}></div>
-                             ) : (
-                                 // Звичайний статус (порожнє місце або корона хоста)
-                                 <div style={{width: '15px', textAlign: 'center', fontSize: '1.1em'}}>
-                                     {isHost ? '👑' : ''}
-                                 </div>
-                             )}
-                             
-                             <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '1.1em'}}>
-                                {p.name}
-                             </span>
-                        </div>
-
-                        {/* КНОПКИ АДМІНА */}
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                            
-                            {/* Якщо я хост - показуємо панель */}
-                            {iAmHost && (
-                                <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
-                                    
-                                    {/* ▶ PLAY (Призначити) */}
-                                    {!isRoundActive && !isExplainer && (
-                                        <button 
-                                            onClick={() => handleSetExplainer(p.id)} 
-                                            title="Призначити ведучим"
-                                            style={{
-                                                background: 'transparent', border: '1px solid #4ecdc4', borderRadius: '50%',
-                                                width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer', color: '#4ecdc4', fontSize: '0.7em', padding: 0, transition: '0.2s'
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}
-                                        >
-                                            ▶
-                                        </button>
-                                    )}
-
-                                    {/* ♕ КОРОНА (Передати права) */}
-                                    {!isRoundActive && !isMe && (
-                                        <button 
-                                            onClick={() => handleTransferHost(p.id)} 
-                                            title="Передати права хоста"
-                                            style={{
-                                                background: 'transparent', border: '1px solid #ffd700', borderRadius: '50%',
-                                                width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer', color: '#ffd700', fontSize: '0.8em', padding: 0, transition: '0.2s'
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}
-                                        >
-                                            ♕
-                                        </button>
-                                    )}
-
-                                    {/* ✕ КІК */}
-                                    {!isMe && (
-                                        <button 
-                                            onClick={() => handleKick(p.id)} 
-                                            title="Вигнати"
-                                            style={{
-                                                background: 'transparent', border: '1px solid #ff4d4d', borderRadius: '50%',
-                                                width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer', color: '#ff4d4d', fontSize: '0.8em', padding: 0, transition: '0.2s'
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )
-            })}
-        
-          </div>
-            {gameStatus === 'lobby' && !isLocked && (
-              <button 
-                  style={{...styles.joinBtn, backgroundColor: '#ff6b6b'}} 
-                  onClick={() => joinTeam(1)}
-              >
-                  Вступити
-              </button>
-          )}</div>  
-
-        {/* === ЦЕНТРАЛЬНА ЧАСТИНА (Ігрове поле) === */}
-        <div style={{...styles.teamBox, flex: 2, borderColor: 'transparent', background: 'transparent'}}>
+      {/* 2. ГОЛОВНИЙ ГРІД (ЗАВЖДИ 3 КОЛОНКИ) */}
+      <div style={styles.mainGrid}>
           
-          {/* ЕКРАН 1: ЛОБІ */}
-          {gameStatus === 'lobby' && (
-            <>
-              <p>Код кімнати:</p> <div style={styles.smallRoomCode}>{roomId}</div>
-              {socket.id === nextExplainerId ? (
-                  <div style={{marginTop: '20px'}}>
-                      <p style={{color: '#ffd700', marginBottom: '10px'}}>Твоя черга пояснювати! 🎤</p>
-                      <button style={{...styles.joinBtn, backgroundColor: '#ffd700', color: 'black', fontSize: '20px'}} onClick={handleStartGame}>ПОЧАТИ РАУНД 🚀</button>
-                  </div>
-              ) : (
-                  <div style={{marginTop: '30px', color: '#888', fontStyle: 'italic'}}>Чекаємо, поки ведучий почне гру... ⏳</div>
-              )}
-            </>
-          )}
-
-{/* ЕКРАН 2: ГРА (АБО ПАУЗА) */}
-         {(gameStatus === 'game' || gameStatus === 'paused') && (
-            <div style={styles.card}>
-              
-              {/* 1. ВЕРХНЯ ПАНЕЛЬ: ТАЙМЕР + ПАУЗА */}
-              <div style={{
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  marginBottom: '20px',
-                  position: 'relative', 
-                  minHeight: '60px'
-              }}>
-                  {/* ТАЙМЕР */}
-                  <div style={{
-                      fontSize: '3.5em', 
-                      fontWeight: 'bold', 
-                      color: timeLeft <= 10 ? '#ff4d4d' : '#fff',
-                      textShadow: '0 0 10px rgba(0,0,0,0.5)',
-                      fontVariantNumeric: 'tabular-nums',
-                      zIndex: 1
-                  }}>
-                      {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                  </div>
-                  
-                  {/* КНОПКА ПАУЗИ (Тільки вона) */}
-                  {socket.id === hostId && (
-                      <div style={{
-                          position: 'absolute',
-                          right: '0',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          zIndex: 2
-                      }}>
-                          <button 
-                              onClick={handleTogglePause}
-                              style={{
-                                  background: 'transparent',
-                                  border: `1px solid ${gameStatus === 'paused' ? '#4ecdc4' : '#666'}`,
-                                  color: gameStatus === 'paused' ? '#4ecdc4' : '#888',
-                                  borderRadius: '20px',
-                                  padding: '5px 15px',
-                                  cursor: 'pointer',
-                                  fontSize: '0.8em',
-                                  fontWeight: 'bold',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  transition: 'all 0.2s',
-                                  whiteSpace: 'nowrap',
-                                  minWidth: '80px'
-                              }}
-                          >
-                              {gameStatus === 'paused' ? '▶ ГРАТИ' : '⏸ ПАУЗА'}
-                          </button>
-                      </div>
-                  )}
-              </div>
-
-              {/* 2. ОСНОВНА ЧАСТИНА (ГРА АБО ПАУЗА) */}
-              {gameStatus === 'paused' ? (
-                  // --- ЕКРАН ПАУЗИ ---
-                  <div style={{
-                      padding: '40px 0', 
-                      borderTop: '1px solid #444', 
-                      borderBottom: '1px solid #444',
-                      animation: 'fadeIn 0.5s'
-                  }}>
-                      <h1 style={{
-                          fontSize: '3em', 
-                          color: '#ff4d4d', 
-                          margin: '0', 
-                          letterSpacing: '8px', 
-                          textTransform: 'uppercase'
-                      }}>
-                          PAUSE
-                      </h1>
-                      <p style={{color: '#666', marginTop: '10px'}}>Ведучий зупинив гру</p>
-                  </div>
-              ) : (
-                  // --- ЕКРАН ГРИ ---
-                  <>
-                      {socket.id === activePlayerId ? (
-                        <>
-                            {/* ТИ ПОЯСНЮЄШ */}
-                            <div style={{minHeight: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                                <h1 style={{fontSize: '3.5em', color: '#ffd700', margin: '0', wordBreak: 'break-word', lineHeight: '1.1'}}>
-                                    {currentWord}
-                                </h1>
-                            </div>
-                            
-                            <div style={{display: 'flex', gap: '15px', marginTop: '20px', justifyContent: 'center'}}>
-                               <button style={{...styles.button, width: 'auto', flex: 1, backgroundColor: '#333', border: '1px solid #ff6b6b', color: '#ff6b6b'}} onClick={() => handleNextWord('skipped')}>
-                                   ПРОПУСТИТИ
-                               </button>
-                               <button style={{...styles.button, width: 'auto', flex: 1, backgroundColor: '#4ecdc4', color: '#000'}} onClick={() => handleNextWord('guessed')}>
-                                   ВГАДАВ!
-                               </button>
-                            </div>
-                            <p style={{color: '#666', marginTop: '15px', fontSize: '0.9em'}}>Ти пояснюєш</p>
-                        </>
-                      ) : (
-                        <>
-                            {/* ТИ СЛУХАЄШ */}
-                            <div style={{minHeight: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
-                                <h1 style={{fontSize: '4em', color: '#333', margin: '0'}}>???</h1>
-                            </div>
-                            <p style={{fontSize: '1.1em', color: '#aaa'}}>Зараз пояснюють інші.</p>
-                        </>
-                      )}
-                  </>
-              )}
-
-              {/* 3. ЖИВА ІСТОРІЯ (Завжди знизу) */}
-              {liveHistory.length > 0 && (
-                  <div style={{
-                      marginTop: '20px',
-                      paddingTop: '15px',
-                      borderTop: '1px solid #333',
-                      textAlign: 'left',
-                      maxHeight: '120px', 
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                  }}>
-                      <div style={{fontSize: '0.8em', textTransform: 'uppercase', color: '#555', textAlign: 'center', letterSpacing: '1px'}}>Історія раунду</div>
-                      
-                      {[...liveHistory].reverse().map((item, idx) => (
-                          <div key={idx} style={{
-                              display: 'flex', 
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              padding: '8px 12px',
-                              borderRadius: '6px',
-                              backgroundColor: 'rgba(255,255,255,0.03)',
-                              borderLeft: item.status === 'guessed' ? '3px solid #4ecdc4' : '3px solid #ff6b6b'
-                          }}>
-                              <span style={{color: '#ccc', fontSize: '1.1em'}}>{item.word}</span>
-                              {item.status === 'guessed' 
-                                  ? <span style={{color: '#4ecdc4'}}>✔</span> 
-                                  : <span style={{color: '#ff6b6b'}}>✕</span>
-                              }
-                          </div>
-                      ))}
-                  </div>
-              )}
-            </div>
-         )}
-
-          {/* ЕКРАН 3: REVIEW */}
-          {gameStatus === 'review' && (
-              <div style={styles.card}>
-                  <h2>Перевірка слів 🧐</h2>
-                  <h3 style={{color: '#ffd700'}}>Бали за раунд: {calculateRoundScore()}</h3>
-                  <div style={{marginTop: '20px', maxHeight: '400px', overflowY: 'auto'}}>
-                      {reviewHistory.map((item, index) => (
-                          <div key={index} style={styles.wordRow}>
-                              <span>{item.word}</span>
-                              <button onClick={() => toggleWordStatus(index)} style={{...styles.statusBtn, backgroundColor: item.status === 'guessed' ? '#4ecdc4' : item.status === 'skipped' ? '#ff6b6b' : '#666', color: 'white'}}>
-                                {item.status === 'guessed' ? '+1' : item.status === 'skipped' ? '-1' : '0'}
-                              </button>
-                          </div>
-                      ))}
-                  </div>
-                  <button style={{...styles.button, backgroundColor: '#ffd700', color: 'black', marginTop: '20px'}} onClick={confirmResults}>ЗАРАХУВАТИ БАЛИ ✅</button>
-              </div>
-          )}
-
-          {/* ЕКРАН 4: ПЕРЕМОГА 🏆 */}
-          {gameStatus === 'victory' && (
-              <div style={styles.card}>
-                  <div style={{fontSize: '5em', marginBottom: '10px'}}>
-                      {winner === 1 ? '🔴' : winner === 2 ? '🔵' : '🤝'}
-                  </div>
-                  
-                  <h1 style={{fontSize: '2.5em', marginBottom: '10px', color: '#ffd700'}}>
-                      {winner === 1 ? 'ПЕРЕМОГА ЧЕРВОНИХ!' : 
-                       winner === 2 ? 'ПЕРЕМОГА СИНІХ!' : 
-                       'НІЧИЯ!'}
-                  </h1>
-
-                  <h3 style={{color: '#fff', marginBottom: '30px'}}>
-                      Рахунок: {score[1]} - {score[2]}
-                  </h3>
-
-                  {socket.id === hostId ? (
-                      <button 
-                          style={{...styles.joinBtn, backgroundColor: '#4ecdc4', fontSize: '1.2em', padding: '15px 30px'}} 
-                          onClick={handleRestart}
-                      >
-                          🔄 НОВА ГРА
-                      </button>
-                  ) : (
-                      <p style={{color: '#888'}}>Чекаємо, поки хост почне нову гру...</p>
-                  )}
-              </div>
-          )}
-        </div>
-
-       {/* === ПРАВА КОЛОНКА (Сині) === */}
-        <div style={{...styles.teamBox, borderColor: '#4ecdc4'}}>
-           <h3 style={{color: '#4ecdc4'}}>🔵 Сині </h3>
-           <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[2]}</h1>
-           <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team2.map(p => { // <--- ТУТ team2
-                const isMe = p.id === socket.id;             
-                const isHost = p.id === hostId;
-                const iAmHost = socket.id === hostId;
-                const isRoundActive = gameStatus === 'game' || gameStatus === 'paused';
-                // 👇 ВИПРАВЛЕНА ЛОГІКА
-                const isExplainer = (gameStatus === 'game' || gameStatus === 'paused') 
-                    ? p.id === activePlayerId 
-                    : p.id === nextExplainerId;
-
-                return (
-                    <div key={p.id} style={{
-                        padding:'12px 5px', 
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between', 
-                        gap: '10px',
-                        color: isExplainer ? '#4ecdc4' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
-                        fontWeight: isMe ? 'bold' : 'normal',
-                        transition: 'all 0.3s',
-                        background: isExplainer ? 'linear-gradient(90deg, rgba(78, 205, 196, 0.1) 0%, transparent 100%)' : 'transparent'
-                    }}>
-                        {/* ІМ'Я + СТРІЛКА */}
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden'}}>
-                             
-                             {/* СТРІЛКА */}
-                             {isExplainer ? (
-                                 <div style={{
-                                     width: 0, 
-                                     height: 0, 
-                                     borderTop: '6px solid transparent',
-                                     borderBottom: '6px solid transparent',
-                                     borderLeft: '10px solid #4ecdc4',
-                                     marginRight: '5px'
-                                 }}></div>
-                             ) : (
-                                 <div style={{width: '15px', textAlign: 'center', fontSize: '1.1em'}}>
-                                     {isHost ? '👑' : ''}
-                                 </div>
-                             )}
-                             
-                             <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '1.1em'}}>
-                                {p.name}
-                             </span>
-                        </div>
-
-                        {/* КНОПКИ АДМІНА */}
-                        <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                            
-                            {iAmHost && (
-                                <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
-                                    {!isRoundActive && !isExplainer && (
-                                        <button onClick={() => handleSetExplainer(p.id)} title="Призначити ведучим" style={{background: 'transparent', border: '1px solid #4ecdc4', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4ecdc4', fontSize: '0.7em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}>
-                                            ▶
-                                        </button>
-                                    )}
-                                    {!isRoundActive && !isMe && (
-                                        <button onClick={() => handleTransferHost(p.id)} title="Передати права хоста" style={{background: 'transparent', border: '1px solid #ffd700', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ffd700', fontSize: '0.8em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}>
-                                            ♕
-                                        </button>
-                                    )}
-                                    {!isMe && (
-                                        <button onClick={() => handleKick(p.id)} title="Вигнати" style={{background: 'transparent', border: '1px solid #ff4d4d', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ff4d4d', fontSize: '0.8em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}>
-                                            ✕
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )
-            })}
+          {/* ЛІВА КОЛОНКА */}
+          <div style={styles.sideColumn}>
+              {leftTeams.map(team => renderTeamCard(team))}
           </div>
-          {gameStatus === 'lobby' && !isLocked && (
-               <button 
-                   style={{...styles.joinBtn, backgroundColor: '#4ecdc4'}} 
-                   onClick={() => joinTeam(2)}
-               >
-                   Вступити
-               </button>
-           )}</div>
+
+          {/* ЦЕНТРАЛЬНА КОЛОНКА (ЗМІНЮЄТЬСЯ В ЗАЛЕЖНОСТІ ВІД ЕТАПУ) */}
+          <div style={styles.centerColumn}>
+              
+              {/* ВАРІАНТ А: ЛОББІ */}
+              {gameStatus === 'lobby' && (
+                  <div style={{marginTop: '40px', textAlign: 'center', opacity: 0.3}}>
+                      <h1 style={{fontSize: '6em', margin: 0, letterSpacing: '10px', color: '#444'}}>ALIAS</h1>
+                      <p style={{fontSize: '1.2em'}}>Чекаємо гравців...</p>
+                  </div>
+              )}
+
+              {/* ВАРІАНТ Б: ГРА або ПАУЗА */}
+              {(gameStatus === 'game' || gameStatus === 'paused') && (
+                <div style={{...styles.card, width: '100%', maxWidth: '100%', padding: '30px', minHeight: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+                      {/* ТАЙМЕР */}
+                      <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px', position: 'relative', minHeight: '60px'}}>
+                          <div style={{fontSize: '5em', fontWeight: 'bold', color: timeLeft <= 10 ? '#ff4d4d' : '#fff', textShadow: '0 0 10px rgba(0,0,0,0.5)', fontVariantNumeric: 'tabular-nums', zIndex: 1}}>
+                              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                          </div>
+                          {socket.id === hostId && (
+                              <div style={{position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', zIndex: 2}}>
+                                  <button onClick={handleTogglePause} style={{background: 'transparent', border: `1px solid ${gameStatus === 'paused' ? '#4ecdc4' : '#666'}`, color: gameStatus === 'paused' ? '#4ecdc4' : '#888', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer', fontSize: '0.8em', fontWeight: 'bold'}}>
+                                      {gameStatus === 'paused' ? '▶' : '⏸'}
+                                  </button>
+                              </div>
+                          )}
+                      </div>
+
+                      {/* СЛОВО */}
+                      {gameStatus === 'paused' ? (
+                          <div style={{padding: '20px 0', borderTop: '1px solid #444', borderBottom: '1px solid #444'}}>
+                              <h1 style={{fontSize: '3em', color: '#ff4d4d', margin: '0', letterSpacing: '8px'}}>PAUSE</h1>
+                          </div>
+                      ) : (
+                          <>
+                              {socket.id === activePlayerId ? (
+                                <>
+                                    <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                                        <h1 style={{fontSize: '4.5em', color: '#ffd700', margin: '0', lineHeight: '1.1'}}>{currentWord}</h1>
+                                    </div>
+                                    <div style={{display: 'flex', gap: '15px', marginTop: '30px', justifyContent: 'center', width: '100%'}}>
+                                       <button style={{...styles.button, width: 'auto', flex: 1, backgroundColor: '#333', border: '1px solid #ff6b6b', color: '#ff6b6b', padding: '20px', fontSize: '1.2em'}} onClick={() => handleNextWord('skipped')}>ПРОПУСТИТИ</button>
+                                       <button style={{...styles.button, width: 'auto', flex: 1, backgroundColor: '#4ecdc4', color: '#000', padding: '20px', fontSize: '1.2em'}} onClick={() => handleNextWord('guessed')}>ВГАДАВ!</button>
+                                    </div>
+                                </>
+                              ) : (
+                                <>
+                                    <div style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+                                        <h1 style={{fontSize: '6em', color: '#333', margin: '0'}}>???</h1>
+                                    </div>
+                                    <p style={{fontSize: '1.2em', color: '#aaa'}}>Зараз пояснюють інші...</p>
+                                </>
+                              )}
+                          </>
+                      )}
+                      
+                       {/* ЖИВА ІСТОРІЯ (Знизу картки) */}
+                       {liveHistory.length > 0 && (
+                          <div style={{marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #333', textAlign: 'left', maxHeight: '100px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px'}}>
+                              {[...liveHistory].reverse().map((item, idx) => (
+                                  <div key={idx} style={{display: 'flex', justifyContent: 'space-between', padding: '5px 10px', background: 'rgba(255,255,255,0.03)', borderLeft: item.status === 'guessed' ? '3px solid #4ecdc4' : '3px solid #ff6b6b'}}>
+                                      <span style={{color: '#ccc'}}>{item.word}</span>
+                                      <span>{item.status === 'guessed' ? '✔' : '✕'}</span>
+                                  </div>
+                              ))}
+                          </div>
+                       )}
+                </div>
+              )}
+
+              {/* ВАРІАНТ В: ПЕРЕВІРКА СЛІВ (REVIEW) */}
+              {gameStatus === 'review' && (
+                  <div style={{...styles.card, width: '100%', maxWidth: '100%', padding: '30px', height: '100%', display: 'flex', flexDirection: 'column'}}>
+                      <h2 style={{margin: '0 0 10px 0'}}>Перевірка слів 🧐</h2>
+                      <h3 style={{color: '#ffd700', fontSize: '2.5em', margin: '10px 0'}}>Бали: {calculateRoundScore()}</h3>
+                      
+                      <div style={{flex: 1, overflowY: 'auto', border: '1px solid #444', borderRadius: '10px', padding: '10px', background: 'rgba(0,0,0,0.2)', marginBottom: '20px'}}>
+                          {reviewHistory.map((item, index) => (
+                              <div key={index} style={{...styles.wordRow, background: index % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent'}}>
+                                  <span style={{textAlign: 'left', flex: 1, fontSize: '1.3em'}}>{item.word}</span>
+                                  <button onClick={() => toggleWordStatus(index)} style={{...styles.statusBtn, padding: '10px', fontSize: '1.1em', backgroundColor: item.status === 'guessed' ? '#4ecdc4' : item.status === 'skipped' ? '#ff6b6b' : '#666', color: 'white'}}>
+                                    {item.status === 'guessed' ? '+1' : item.status === 'skipped' ? '-1' : '0'}
+                                  </button>
+                              </div>
+                          ))}
+                      </div>
+                      <button style={{...styles.button, backgroundColor: '#ffd700', color: 'black', padding: '20px', fontSize: '1.3em'}} onClick={confirmResults}>ЗАРАХУВАТИ БАЛИ ✅</button>
+                  </div>
+              )}
+
+              {/* ВАРІАНТ Г: ПЕРЕМОГА */}
+              {gameStatus === 'victory' && (
+                  <div style={{...styles.card, width: '100%', maxWidth: '100%', padding: '50px'}}>
+                      <div style={{fontSize: '7em', marginBottom: '20px'}}>🏆</div>
+                      <h1 style={{fontSize: '2.5em', marginBottom: '20px', color: '#ffd700'}}>
+                         ПЕРЕМОГА КОМАНДИ<br/>
+                         <span style={{fontSize: '1.5em', color: '#fff'}}>{winner !== null && teams.teams[winner] ? teams.teams[winner].name : ''}</span>!
+                      </h1>
+                      {socket.id === hostId && (
+                          <button style={{...styles.joinBtn, backgroundColor: '#4ecdc4', fontSize: '1.5em', padding: '20px 40px'}} onClick={handleRestart}>🔄 НОВА ГРА</button>
+                      )}
+                  </div>
+              )}
+
+          </div>
+
+          {/* ПРАВА КОЛОНКА */}
+          <div style={styles.sideColumn}>
+              {rightTeams.map(team => renderTeamCard(team))}
+          </div>
 
       </div>
 
-      {/* --- МІНІ-ПАНЕЛЬ НАЛАШТУВАНЬ (Right Bottom) --- */}
-      {/* Показуємо ЗАВЖДИ, крім стартової сторінки */}
+      {/* ПАНЕЛЬ НАЛАШТУВАНЬ (ПРАВА НИЖНЯ) */}
       {(gameStatus === 'lobby' || gameStatus === 'game' || gameStatus === 'paused' || gameStatus === 'review') && (
         <div style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            backgroundColor: 'rgba(20, 20, 20, 0.95)',
-            padding: '15px',
-            borderRadius: '8px',
-            border: '1px solid #333',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '15px',
-            zIndex: 1000,
-            backdropFilter: 'blur(5px)',
-            minWidth: '120px',
-            color: '#ddd'
+            position: 'fixed', bottom: '20px', right: '20px', backgroundColor: 'rgba(20, 20, 20, 0.95)', padding: '15px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '15px', zIndex: 1000, backdropFilter: 'blur(5px)', minWidth: '120px', color: '#ddd'
         }}>
-            {/* 1. ТАЙМЕР */}
+            {/* Твої старі налаштування (Teams, Time, Win, Diff) залишаються тут */}
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
+                <span style={{fontSize: '1em', color: '#888'}}>Teams</span>
+                {socket.id === hostId ? (
+                   <select 
+                      value={settings.teamsCount || 2}
+                      onChange={(e) => handleSettingsChange('teamsCount', e.target.value)}
+                      style={{flex: 1, padding: '5px', borderRadius: '5px', border: 'none', backgroundColor: '#333', color: '#fff', cursor: 'pointer', outline: 'none', textAlign: 'right'}}
+                      disabled={gameStatus !== 'lobby'}
+                   >
+                       <option value="1">1</option>
+                       <option value="2">2</option>
+                       <option value="3">3</option>
+                       <option value="4">4</option>
+                   </select>
+                ) : (
+                    <span style={{fontWeight: 'bold', color: '#fff'}}>{settings.teamsCount || 2}</span>
+                )}
+            </div>
+            
+             <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
+
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
                 <span style={{fontSize: '1em', color: '#888'}}>Time</span>
-                {socket.id === hostId ? (
-                   <input 
-                      type="range" min="10" max="180" step="10" 
-                      value={settings.roundTime}
-                      onChange={(e) => handleSettingsChange('roundTime', e.target.value)}
-                      style={{width: '60px', cursor: 'pointer', accentColor: '#fff'}}
-                   />
-                ) : <div style={{flex: 1}}></div>}
+                {socket.id === hostId ? <input type="range" min="10" max="180" step="10" value={settings.roundTime} onChange={(e) => handleSettingsChange('roundTime', e.target.value)} style={{width: '60px', cursor: 'pointer', accentColor: '#fff'}} /> : <div style={{flex: 1}}></div>}
                 <span style={{fontWeight: 'bold', minWidth: '25px', textAlign: 'right'}}>{settings.roundTime}</span>
             </div>
-
-            {/* 2. ПЕРЕМОГА */}
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
                 <span style={{fontSize: '1em', color: '#888'}}>Win</span>
-                {socket.id === hostId ? (
-                   <input 
-                      type="range" min="10" max="100" step="5" 
-                      value={settings.winScore}
-                      onChange={(e) => handleSettingsChange('winScore', e.target.value)}
-                      style={{width: '60px', cursor: 'pointer', accentColor: '#fff'}}
-                   />
-                ) : <div style={{flex: 1}}></div>}
+                {socket.id === hostId ? <input type="range" min="10" max="100" step="5" value={settings.winScore} onChange={(e) => handleSettingsChange('winScore', e.target.value)} style={{width: '60px', cursor: 'pointer', accentColor: '#fff'}} /> : <div style={{flex: 1}}></div>}
                 <span style={{fontWeight: 'bold', minWidth: '25px', textAlign: 'right'}}>{settings.winScore}</span>
             </div>
             
             <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
 
-            {/* 3. СКЛАДНІСТЬ */}
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
                 <span style={{fontSize: '1em', color: '#888'}}>Diff</span>
                 {socket.id === hostId ? (
-                   <select 
-                      value={settings.difficulty || 'normal'}
-                      onChange={(e) => handleSettingsChange('difficulty', e.target.value)}
-                      style={{
-                          flex: 1, padding: '5px', borderRadius: '5px', border: 'none',
-                          backgroundColor: '#333', color: '#fff', cursor: 'pointer', outline: 'none', textAlign: 'right'
-                      }}
-                   >
+                   <select value={settings.difficulty || 'normal'} onChange={(e) => handleSettingsChange('difficulty', e.target.value)} style={{flex: 1, padding: '5px', borderRadius: '5px', border: 'none', backgroundColor: '#333', color: '#fff', cursor: 'pointer', outline: 'none', textAlign: 'right'}}>
                        <option value="easy">Easy</option>
                        <option value="normal">Norm</option>
                        <option value="hard">Hard</option>
                    </select>
-                ) : (
-                    <span style={{fontWeight: 'bold', color: '#ffd700', textTransform: 'capitalize'}}>
-                        {settings.difficulty || 'normal'}
-                    </span>
-                )}
+                ) : <span style={{fontWeight: 'bold', color: '#ffd700', textTransform: 'capitalize'}}>{settings.difficulty || 'normal'}</span>}
             </div>
 
-            {/* 4. ЗАМОК ТА SHUFFLE (Тільки в Лобі) */}
             {gameStatus === 'lobby' && (
                 <>
                     <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
                         <span style={{fontSize: '1em', color: '#888'}}>Lobby</span>
                         {socket.id === hostId ? (
-                        <button onClick={handleToggleLock} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4em', padding: '0 5px'}} title={isLocked ? "Відкрити" : "Закрити"}>
-                            {isLocked ? '🔒' : '🔓'}
-                        </button>
+                        <button onClick={handleToggleLock} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4em', padding: '0 5px'}} title={isLocked ? "Відкрити" : "Закрити"}>{isLocked ? '🔒' : '🔓'}</button>
                         ) : <span style={{fontSize: '1.2em'}}>{isLocked ? '🔒' : '🔓'}</span>}
-                        
                         {socket.id === hostId && (
-                            <button onClick={handleShuffle} disabled={isLocked} style={{background: 'none', border: 'none', cursor: isLocked ? 'not-allowed' : 'pointer', fontSize: '1.4em', padding: '0 5px', opacity: isLocked ? 0.3 : 1}} title="Перемішати">
-                                🔀
-                            </button>
+                            <button onClick={handleShuffle} disabled={isLocked} style={{background: 'none', border: 'none', cursor: isLocked ? 'not-allowed' : 'pointer', fontSize: '1.4em', padding: '0 5px', opacity: isLocked ? 0.3 : 1}} title="Перемішати">🔀</button>
                         )}
                     </div>
                 </>
             )}
 
-            {/* 👇 5. КНОПКА РЕСТАРТУ (ТІЛЬКИ ДЛЯ ХОСТА) 👇 */}
             {socket.id === hostId && (
                 <>
                     <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
-                    <button 
-                        onClick={() => {
-                            if(window.confirm("🔴 УВАГА: Це повністю скине гру та рахунок. Продовжити?")) {
-                                handleRestart();
-                            }
-                        }}
-                        style={{
-                            backgroundColor: '#ff4d4d',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '5px',
-                            padding: '10px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            fontSize: '0.9em',
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '5px'
-                        }}
-                    >
-                        🔄 RESTART GAME
+                    <button onClick={() => { if(window.confirm("🔴 УВАГА: Це повністю скине гру та рахунок. Продовжити?")) handleRestart(); }} style={{backgroundColor: '#ff4d4d', color: 'white', border: 'none', borderRadius: '5px', padding: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9em', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'}}>
+                        🔄 RESTART
                     </button>
                 </>
             )}
         </div>
       )}
-
     </div>
   )
 }
-
 function App() { 
     // Налаштування маршрутизації (сторінок)
     return (
