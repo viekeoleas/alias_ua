@@ -312,7 +312,10 @@ const handleSettingsChange = (key, value) => {
   const handleRestart = () => {
       socket.emit("restart_game", { roomId });
   };
-
+  
+const handleSetExplainer = (targetId) => {
+      socket.emit("set_explainer", { roomId, targetId });
+  };
   // Допоміжна функція: просто показує попередній підрахунок балів на екрані Review
   const calculateRoundScore = () => {
       return reviewHistory.reduce((acc, item) => {
@@ -389,60 +392,116 @@ const handleSettingsChange = (key, value) => {
           <h3 style={{color: '#ff6b6b'}}>🔴 Черовоні</h3>
           <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[1]}</h1>
           <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team1.map(p => {
+            {teams.team1.map(p => { // <--- ⚠️ ДЛЯ ПРАВОЇ КОЛОНКИ ТУТ МАЄ БУТИ team2
                 const isMe = p.id === socket.id;             
-                const isExplainer = p.id === nextExplainerId; 
+                const isExplainer = p.id === nextExplainerId || p.id === activePlayerId; 
                 const isHost = p.id === hostId;
+                const iAmHost = socket.id === hostId;
 
                 return (
                     <div key={p.id} style={{
-                        padding:'8px 10px', 
-                        marginBottom: '8px',
-                        borderRadius: '8px',
+                        padding:'10px 0', // Трохи менше відступів збоку
+                        borderBottom: '1px solid rgba(255,255,255,0.05)', // Тонка лінія замість рамки
                         display: 'flex', 
                         alignItems: 'center', 
-                        justifyContent: 'space-between', // Розподіляємо ліву і праву частини
+                        justifyContent: 'space-between', 
                         gap: '10px',
-                        backgroundColor: isExplainer ? 'rgba(255, 215, 0, 0.15)' : 'transparent', 
-                        border: isExplainer ? '1px solid #ffd700' : '1px solid transparent',     
+                        // Якщо ведучий - легкий золотий відтінок тексту, без фону
+                        color: isExplainer ? '#ffd700' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
                         fontWeight: isMe ? 'bold' : 'normal',
-                        color: isMe ? '#fff' : 'rgba(255,255,255,0.7)',
+                        transition: 'all 0.3s'
                     }}>
-                        {/* ЛІВА ЧАСТИНА: Іконка + Ім'я */}
+                        {/* ІМ'Я + СТАТУС */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden'}}>
-                             <span style={{width: '20px', textAlign: 'center'}}>{isMe ? '👤' : ''}</span>
-                             <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                                {isHost ? '⭐ ' : ''}{p.name}
+                             <span style={{width: '20px', textAlign: 'center', fontSize: '1.1em'}}>
+                                {isHost ? '👑' : isMe ? '●' : ''}
+                             </span>
+                             <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '1.1em'}}>
+                                {p.name}
                              </span>
                         </div>
 
-                        {/* ПРАВА ЧАСТИНА: Мікрофон + Кнопки */}
+                        {/* СТАТУС ТА КНОПКИ */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                             
-                            {/* Мікрофон (якщо ведучий) */}
-                            {isExplainer && <span style={{fontSize: '1.2em'}}>🎤</span>} 
+                            {/* Іконка мікрофону (якщо ведучий) */}
+                            {isExplainer && <span style={{fontSize: '1em', animation: 'pulse 2s infinite'}} title="Ведучий">🎙️</span>}
 
-                            {/* Кнопки адміна (тільки для хоста і не на собі) */}
-                            {socket.id === hostId && !isMe && (
-                                <div style={{display: 'flex', gap: '5px'}}>
-                                    <button 
-                                        onClick={() => handleTransferHost(p.id)} 
-                                        title="Зробити хостом"
-                                        style={{
-                                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', padding: '0 2px', lineHeight: '1'
-                                        }}
-                                    >
-                                        👑
-                                    </button>
-                                    <button 
-                                        onClick={() => handleKick(p.id)} 
-                                        title="Вигнати"
-                                        style={{
-                                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', padding: '0 2px', lineHeight: '1'
-                                        }}
-                                    >
-                                        ❌
-                                    </button>
+                            {/* 👇 МІНІМАЛІСТИЧНА ПАНЕЛЬ АДМІНА 👇 */}
+                            {iAmHost && (
+                                <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
+                                    
+                                    {/* ▶ PLAY (Зробити ведучим) */}
+                                    {!isExplainer && (
+                                        <button 
+                                            onClick={() => handleSetExplainer(p.id)} 
+                                            title="Призначити ведучим"
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #4ecdc4',
+                                                borderRadius: '50%', // Кругла
+                                                width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: '#4ecdc4',
+                                                fontSize: '0.7em',
+                                                transition: 'all 0.2s',
+                                                padding: 0
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}
+                                        >
+                                            ▶
+                                        </button>
+                                    )}
+
+                                    {/* 👑 ADMIN (Передати права) */}
+                                    {!isMe && (
+                                        <button 
+                                            onClick={() => handleTransferHost(p.id)} 
+                                            title="Передати права хоста"
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #ffd700',
+                                                borderRadius: '50%',
+                                                width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: '#ffd700',
+                                                fontSize: '0.8em', // Трохи більша іконка
+                                                transition: 'all 0.2s',
+                                                padding: 0
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}
+                                        >
+                                            ♕
+                                        </button>
+                                    )}
+
+                                    {/* ✕ KICK (Вигнати) */}
+                                    {!isMe && (
+                                        <button 
+                                            onClick={() => handleKick(p.id)} 
+                                            title="Вигнати"
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #ff4d4d', // Тонка червона рамка
+                                                borderRadius: '50%',
+                                                width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: '#ff4d4d',
+                                                fontSize: '0.8em',
+                                                transition: 'all 0.2s',
+                                                padding: 0
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -683,61 +742,116 @@ const handleSettingsChange = (key, value) => {
            <h3 style={{color: '#4ecdc4'}}>🔵 Сині </h3>
            <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[2]}</h1>
            <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team2.map(p => {
-                const isMe = p.id === socket.id;
-                const isExplainer = p.id === nextExplainerId;
+            {teams.team2.map(p => { // <--- ⚠️ ДЛЯ ПРАВОЇ КОЛОНКИ ТУТ МАЄ БУТИ team2
+                const isMe = p.id === socket.id;             
+                const isExplainer = p.id === nextExplainerId || p.id === activePlayerId; 
                 const isHost = p.id === hostId;
+                const iAmHost = socket.id === hostId;
 
                 return (
                     <div key={p.id} style={{
-                        padding:'8px 10px', 
-                        marginBottom: '8px',
-                        borderRadius: '8px',
+                        padding:'10px 0', // Трохи менше відступів збоку
+                        borderBottom: '1px solid rgba(255,255,255,0.05)', // Тонка лінія замість рамки
                         display: 'flex', 
                         alignItems: 'center', 
-                        justifyContent: 'space-between', // Розподіляємо
+                        justifyContent: 'space-between', 
                         gap: '10px',
-                        
-                        // Стиль ведучого (Золотий)
-                        backgroundColor: isExplainer ? 'rgba(255, 215, 0, 0.15)' : 'transparent', 
-                        border: isExplainer ? '1px solid #ffd700' : '1px solid transparent',
-
+                        // Якщо ведучий - легкий золотий відтінок тексту, без фону
+                        color: isExplainer ? '#ffd700' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
                         fontWeight: isMe ? 'bold' : 'normal',
-                        color: isMe ? '#fff' : 'rgba(255,255,255,0.7)'
+                        transition: 'all 0.3s'
                     }}>
-                        {/* ЛІВА ЧАСТИНА */}
+                        {/* ІМ'Я + СТАТУС */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden'}}>
-                            <span style={{width: '20px', textAlign: 'center'}}>{isMe ? '👤' : ''}</span>
-                            <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                                {isHost ? '⭐ ' : ''}{p.name}
-                            </span>
+                             <span style={{width: '20px', textAlign: 'center', fontSize: '1.1em'}}>
+                                {isHost ? '👑' : isMe ? '●' : ''}
+                             </span>
+                             <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '1.1em'}}>
+                                {p.name}
+                             </span>
                         </div>
 
-                        {/* ПРАВА ЧАСТИНА */}
+                        {/* СТАТУС ТА КНОПКИ */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                             
-                            {isExplainer && <span style={{fontSize: '1.2em'}}>🎤</span>}
+                            {/* Іконка мікрофону (якщо ведучий) */}
+                            {isExplainer && <span style={{fontSize: '1em', animation: 'pulse 2s infinite'}} title="Ведучий">🎙️</span>}
 
-                            {socket.id === hostId && !isMe && (
-                                <div style={{display: 'flex', gap: '5px'}}>
-                                    <button 
-                                        onClick={() => handleTransferHost(p.id)} 
-                                        title="Зробити хостом"
-                                        style={{
-                                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', padding: '0 2px', lineHeight: '1'
-                                        }}
-                                    >
-                                        👑
-                                    </button>
-                                    <button 
-                                        onClick={() => handleKick(p.id)} 
-                                        title="Вигнати"
-                                        style={{
-                                            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2em', padding: '0 2px', lineHeight: '1'
-                                        }}
-                                    >
-                                        ❌
-                                    </button>
+                            {/* 👇 МІНІМАЛІСТИЧНА ПАНЕЛЬ АДМІНА 👇 */}
+                            {iAmHost && (
+                                <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
+                                    
+                                    {/* ▶ PLAY (Зробити ведучим) */}
+                                    {!isExplainer && (
+                                        <button 
+                                            onClick={() => handleSetExplainer(p.id)} 
+                                            title="Призначити ведучим"
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #4ecdc4',
+                                                borderRadius: '50%', // Кругла
+                                                width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: '#4ecdc4',
+                                                fontSize: '0.7em',
+                                                transition: 'all 0.2s',
+                                                padding: 0
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}
+                                        >
+                                            ▶
+                                        </button>
+                                    )}
+
+                                    {/* 👑 ADMIN (Передати права) */}
+                                    {!isMe && (
+                                        <button 
+                                            onClick={() => handleTransferHost(p.id)} 
+                                            title="Передати права хоста"
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #ffd700',
+                                                borderRadius: '50%',
+                                                width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: '#ffd700',
+                                                fontSize: '0.8em', // Трохи більша іконка
+                                                transition: 'all 0.2s',
+                                                padding: 0
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}
+                                        >
+                                            ♕
+                                        </button>
+                                    )}
+
+                                    {/* ✕ KICK (Вигнати) */}
+                                    {!isMe && (
+                                        <button 
+                                            onClick={() => handleKick(p.id)} 
+                                            title="Вигнати"
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #ff4d4d', // Тонка червона рамка
+                                                borderRadius: '50%',
+                                                width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: '#ff4d4d',
+                                                fontSize: '0.8em',
+                                                transition: 'all 0.2s',
+                                                padding: 0
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

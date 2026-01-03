@@ -575,7 +575,55 @@ io.on('connection', (socket) => {
             io.to(roomId).emit("update_teams", getSafeRoom(room));
         }
     });
+// --- НОВЕ: ПРИЗНАЧИТИ ВЕДУЧОГО (Зміна ходу) ---
+    socket.on("set_explainer", ({ roomId, targetId }) => {
+        const room = rooms[roomId];
+        if (room && socket.id === room.hostId) {
+            // 1. Шукаємо, в якій команді цей гравець
+            const p1Index = room.team1.findIndex(p => p.id === targetId);
+            const p2Index = room.team2.findIndex(p => p.id === targetId);
 
+            if (p1Index !== -1) {
+                // Гравець у 1-й команді: перемикаємо хід на Team 1 і ставимо індекс на нього
+                room.currentTeam = 1;
+                room.team1Index = p1Index;
+            } else if (p2Index !== -1) {
+                // Гравець у 2-й команді: перемикаємо хід на Team 2
+                room.currentTeam = 2;
+                room.team2Index = p2Index;
+            }
+
+            // 2. Якщо це відбувається ПРЯМО ПІД ЧАС ГРИ, миттєво змінюємо активного
+            if (room.status === 'game') {
+                room.activePlayerId = targetId;
+                // Відправляємо новому ведучому слово
+                io.to(targetId).emit("game_started", { word: room.currentWord, explainerId: targetId });
+            }
+
+            // Оновлюємо всіх (getSafeRoom сам перерахує nextExplainerId на основі індексів)
+            io.to(roomId).emit("update_teams", getSafeRoom(room));
+        }
+    });
+
+    // --- ОНОВЛЕНО: РЕСТАРТ ГРИ (Виправляємо баг з рахунком) ---
+    socket.on("restart_game", ({ roomId }) => {
+        const room = rooms[roomId];
+        if (room && socket.id === room.hostId) {
+            if (room.timer) clearInterval(room.timer);
+            
+            room.score = { 1: 0, 2: 0 }; // Скидаємо на сервері
+            room.status = 'lobby';       
+            room.currentTeam = 1; 
+            room.team1Index = 0; // Можна також скинути чергу, якщо треба
+            room.team2Index = 0;       
+            room.winner = null;
+            room.activePlayerId = null;
+
+            // 👇 ВАЖЛИВО: Явно відправляємо подію update_score, щоб UI оновився миттєво
+            io.to(roomId).emit("update_score", room.score); 
+            io.to(roomId).emit("update_teams", getSafeRoom(room));
+        }
+    });
     // 2. КІК ГРАВЦЯ
     socket.on("kick_player", ({ roomId, targetId }) => {
         const room = rooms[roomId];
