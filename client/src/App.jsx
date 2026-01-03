@@ -405,7 +405,7 @@ const handleSetExplainer = (targetId) => {
                 const isMe = p.id === socket.id;             
                 const isHost = p.id === hostId;
                 const iAmHost = socket.id === hostId;
-
+                const isRoundActive = gameStatus === 'game' || gameStatus === 'paused';
                 // 👇 ВИПРАВЛЕНА ЛОГІКА (Сувора перевірка)
                 const isExplainer = (gameStatus === 'game' || gameStatus === 'paused') 
                     ? p.id === activePlayerId 
@@ -457,7 +457,7 @@ const handleSetExplainer = (targetId) => {
                                 <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
                                     
                                     {/* ▶ PLAY (Призначити) */}
-                                    {!isExplainer && (
+                                    {!isRoundActive && !isExplainer && (
                                         <button 
                                             onClick={() => handleSetExplainer(p.id)} 
                                             title="Призначити ведучим"
@@ -474,7 +474,7 @@ const handleSetExplainer = (targetId) => {
                                     )}
 
                                     {/* ♕ КОРОНА (Передати права) */}
-                                    {!isMe && (
+                                    {!isRoundActive && !isMe && (
                                         <button 
                                             onClick={() => handleTransferHost(p.id)} 
                                             title="Передати права хоста"
@@ -750,7 +750,7 @@ const handleSetExplainer = (targetId) => {
                 const isMe = p.id === socket.id;             
                 const isHost = p.id === hostId;
                 const iAmHost = socket.id === hostId;
-
+                const isRoundActive = gameStatus === 'game' || gameStatus === 'paused';
                 // 👇 ВИПРАВЛЕНА ЛОГІКА
                 const isExplainer = (gameStatus === 'game' || gameStatus === 'paused') 
                     ? p.id === activePlayerId 
@@ -798,12 +798,12 @@ const handleSetExplainer = (targetId) => {
                             
                             {iAmHost && (
                                 <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
-                                    {!isExplainer && (
+                                    {!isRoundActive && !isExplainer && (
                                         <button onClick={() => handleSetExplainer(p.id)} title="Призначити ведучим" style={{background: 'transparent', border: '1px solid #4ecdc4', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4ecdc4', fontSize: '0.7em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}>
                                             ▶
                                         </button>
                                     )}
-                                    {!isMe && (
+                                    {!isRoundActive && !isMe && (
                                         <button onClick={() => handleTransferHost(p.id)} title="Передати права хоста" style={{background: 'transparent', border: '1px solid #ffd700', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ffd700', fontSize: '0.8em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}>
                                             ♕
                                         </button>
