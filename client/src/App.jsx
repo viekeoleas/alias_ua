@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom'
 import io from 'socket.io-client'
 
-// --- ПІДКЛЮЧЕННЯ ДО СЕРВЕРА ---
-// Ми створюємо сокет поза компонентами. Це важливо!
-// Якщо створити його всередині компонента, то при кожному перемалюванні (рендері)
-// буде створюватись нове підключення, і сервер "ляже" від кількості конектів.
-const socket = io.connect("http://localhost:3001")
+// Автоматичне визначення адреси
+// Якщо ми на локалхості - стукаємо на порт 3001
+// Якщо в інтернеті - використовуємо змінну оточення (яку ми потім додамо)
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+const socket = io.connect(SERVER_URL);
 
 // --- СТИЛІ (CSS-in-JS) ---
 // Це просто об'єкт зі стилями. У великих проєктах використовують CSS-файли або Styled Components,
