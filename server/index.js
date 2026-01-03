@@ -340,70 +340,80 @@ io.on('connection', (socket) => {
         }
     });
 
-   // 6. ПРИЄДНАННЯ ДО КОМАНДИ (З ВІДНОВЛЕННЯМ РОЛІ)
+   // 6. ПРИЄДНАННЯ ДО КОМАНДИ (З ВІДНОВЛЕННЯМ РОЛІ ПІСЛЯ F5)
     socket.on("join_team", ({ roomId, team, name }) => {
         const room = rooms[roomId];
         if (room) {
-            if (room.isLocked) {
-                // Если ты Хост - тебе можно (опционально), остальным - нельзя
-                // Или просто запрещаем всем переходить
-                socket.emit("error_message", "Команды заблокированы хостом 🔒");
-                return; // <--- ВАЖНО: ПРЕРЫВАЕМ ФУНКЦИЮ
-            }
             const safeName = name ? name.trim() : "";
             if (!safeName) return;
 
-            // Видаляємо зі спектаторів (тепер надійно, за іменем)
+            // 1. 👇 ПЕРЕВІРЯЄМО, ЧИ ГРАВЕЦЬ ВЖЕ Є В КОМАНДАХ (За іменем)
+            // Це ключовий момент для F5. Ми шукаємо себе в списках.
+            const inTeam1 = room.team1.find(p => p.name === safeName);
+            const inTeam2 = room.team2.find(p => p.name === safeName);
+            const isReconnecting = inTeam1 || inTeam2;
+
+            // 2. 👇 ПЕРЕВІРКА ЗАМКА 🔒
+            // Логіка: Якщо кімната закрита І це НЕ старий гравець -> Блокуємо.
+            // Якщо це реконнект (isReconnecting === true), то код піде далі.
+            if (room.isLocked && !isReconnecting) {
+                socket.emit("error_message", "Команди заблокированы хостом 🔒");
+                return; 
+            }
+
+            // Видаляємо зі спектаторів
             room.spectators = room.spectators.filter(p => p.name !== safeName);
 
             const targetTeam = Number(team);
-            
-            // Шукаємо індекси гравця в командах за іменем
-            const idx1 = room.team1.findIndex(p => p.name === safeName);
-            const idx2 = room.team2.findIndex(p => p.name === safeName);
-
             const newPlayer = { id: socket.id, name: safeName };
 
             // Функція для оновлення ID і відновлення прав ведучого
             const updatePlayerId = (playerObj) => {
                 const oldId = playerObj.id;
-                playerObj.id = socket.id;
+                playerObj.id = socket.id; // Оновлюємо старий ID на новий
 
                 // ЯКЩО ЦЕ БУВ ХОСТ — ПЕРЕДАЄМО ПРАВА
                 if (room.hostId === oldId) {
                     room.hostId = socket.id;
                 }
+                
                 // ЯКЩО ЦЕЙ ГРАВЕЦЬ БУВ АКТИВНИМ (ВЕДУЧИМ)
+                // Це критично для F5 під час пояснення!
                 if (room.activePlayerId === oldId) {
-                    room.activePlayerId = socket.id; // Передаємо "мікрофон" новому сокету
-                    // Повторно відправляємо подію старту гри саме цьому гравцю, щоб у нього з'явилися кнопки
+                    room.activePlayerId = socket.id; // Передаємо "мікрофон"
+                    
+                    // 👇 ВІДНОВЛЮЄМО ЕКРАН ГРИ 👇
                     if (room.status === 'game') {
+                        // Відправляємо слово і права ведучого знову
                         socket.emit("game_started", { word: room.currentWord, explainerId: socket.id });
+                        // Відновлюємо список історії, щоб він бачив, що вже відгадав
+                        socket.emit("update_live_history", room.roundHistory);
                     }
                 }
+                
                 // ЯКЩО ВІН МАВ БУТИ НАСТУПНИМ
                 if (room.nextExplainerId === oldId) {
                     room.nextExplainerId = socket.id;
                 }
             };
 
+            // Логіка додавання/оновлення у списках
             if (targetTeam === 1) {
-                if (idx1 !== -1) {
-                    // Гравець вже тут — оновлюємо ID
-                    updatePlayerId(room.team1[idx1]);
-                    // Переконуємось, що його немає в іншій команді
-                    if (idx2 !== -1) room.team2.splice(idx2, 1);
+                if (inTeam1) {
+                    // Гравець вже тут — просто оновлюємо ID (Re-connect)
+                    updatePlayerId(inTeam1); 
                 } else {
-                    // Гравця немає — додаємо
-                    if (idx2 !== -1) room.team2.splice(idx2, 1);
+                    // Новий вхід
+                    if (inTeam2) room.team2 = room.team2.filter(p => p.name !== safeName); // Видаляємо з іншої
                     room.team1.push(newPlayer);
                 }
             } else if (targetTeam === 2) {
-                if (idx2 !== -1) {
-                    updatePlayerId(room.team2[idx2]);
-                    if (idx1 !== -1) room.team1.splice(idx1, 1);
+                if (inTeam2) {
+                    // Гравець вже тут — просто оновлюємо ID (Re-connect)
+                    updatePlayerId(inTeam2);
                 } else {
-                    if (idx1 !== -1) room.team1.splice(idx1, 1);
+                    // Новий вхід
+                    if (inTeam1) room.team1 = room.team1.filter(p => p.name !== safeName);
                     room.team2.push(newPlayer);
                 }
             }
