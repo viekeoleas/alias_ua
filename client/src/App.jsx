@@ -392,61 +392,70 @@ const handleSetExplainer = (targetId) => {
           <h3 style={{color: '#ff6b6b'}}>🔴 Черовоні</h3>
           <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[1]}</h1>
           <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team1.map(p => { // <--- ⚠️ ДЛЯ ПРАВОЇ КОЛОНКИ ТУТ МАЄ БУТИ team2
+            {teams.team1.map(p => {
                 const isMe = p.id === socket.id;             
-                const isExplainer = p.id === nextExplainerId || p.id === activePlayerId; 
                 const isHost = p.id === hostId;
                 const iAmHost = socket.id === hostId;
 
+                // 👇 ВИПРАВЛЕНА ЛОГІКА (Сувора перевірка)
+                const isExplainer = (gameStatus === 'game' || gameStatus === 'paused') 
+                    ? p.id === activePlayerId 
+                    : p.id === nextExplainerId;
+
                 return (
                     <div key={p.id} style={{
-                        padding:'10px 0', // Трохи менше відступів збоку
-                        borderBottom: '1px solid rgba(255,255,255,0.05)', // Тонка лінія замість рамки
+                        padding:'12px 5px', 
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'space-between', 
                         gap: '10px',
-                        // Якщо ведучий - легкий золотий відтінок тексту, без фону
-                        color: isExplainer ? '#ffd700' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
+                        color: isExplainer ? '#4ecdc4' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'), // Бірюзовий для ведучого
                         fontWeight: isMe ? 'bold' : 'normal',
-                        transition: 'all 0.3s'
+                        transition: 'all 0.3s',
+                        background: isExplainer ? 'linear-gradient(90deg, rgba(78, 205, 196, 0.1) 0%, transparent 100%)' : 'transparent' // Легкий градієнт
                     }}>
-                        {/* ІМ'Я + СТАТУС */}
-                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden'}}>
-                             <span style={{width: '20px', textAlign: 'center', fontSize: '1.1em'}}>
-                                {isHost ? '👑' : isMe ? '●' : ''}
-                             </span>
+                        {/* ІМ'Я + СТРІЛКА */}
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden'}}>
+                             
+                             {/* 👇 ВЕДУЧИЙ: CSS СТРІЛКА (Замість жовтого круга) */}
+                             {isExplainer ? (
+                                 <div style={{
+                                     width: 0, 
+                                     height: 0, 
+                                     borderTop: '6px solid transparent',
+                                     borderBottom: '6px solid transparent',
+                                     borderLeft: '10px solid #4ecdc4', // Колір стрілки
+                                     marginRight: '5px'
+                                 }}></div>
+                             ) : (
+                                 // Звичайний статус (порожнє місце або корона хоста)
+                                 <div style={{width: '15px', textAlign: 'center', fontSize: '1.1em'}}>
+                                     {isHost ? '👑' : ''}
+                                 </div>
+                             )}
+                             
                              <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '1.1em'}}>
                                 {p.name}
                              </span>
                         </div>
 
-                        {/* СТАТУС ТА КНОПКИ */}
+                        {/* КНОПКИ АДМІНА */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                             
-                            {/* Іконка мікрофону (якщо ведучий) */}
-                            {isExplainer && <span style={{fontSize: '1em', animation: 'pulse 2s infinite'}} title="Ведучий">🎙️</span>}
-
-                            {/* 👇 МІНІМАЛІСТИЧНА ПАНЕЛЬ АДМІНА 👇 */}
+                            {/* Якщо я хост - показуємо панель */}
                             {iAmHost && (
                                 <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
                                     
-                                    {/* ▶ PLAY (Зробити ведучим) */}
+                                    {/* ▶ PLAY (Призначити) */}
                                     {!isExplainer && (
                                         <button 
                                             onClick={() => handleSetExplainer(p.id)} 
                                             title="Призначити ведучим"
                                             style={{
-                                                background: 'transparent',
-                                                border: '1px solid #4ecdc4',
-                                                borderRadius: '50%', // Кругла
-                                                width: '24px', height: '24px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: '#4ecdc4',
-                                                fontSize: '0.7em',
-                                                transition: 'all 0.2s',
-                                                padding: 0
+                                                background: 'transparent', border: '1px solid #4ecdc4', borderRadius: '50%',
+                                                width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', color: '#4ecdc4', fontSize: '0.7em', padding: 0, transition: '0.2s'
                                             }}
                                             onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }}
                                             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}
@@ -455,22 +464,15 @@ const handleSetExplainer = (targetId) => {
                                         </button>
                                     )}
 
-                                    {/* 👑 ADMIN (Передати права) */}
+                                    {/* ♕ КОРОНА (Передати права) */}
                                     {!isMe && (
                                         <button 
                                             onClick={() => handleTransferHost(p.id)} 
                                             title="Передати права хоста"
                                             style={{
-                                                background: 'transparent',
-                                                border: '1px solid #ffd700',
-                                                borderRadius: '50%',
-                                                width: '24px', height: '24px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: '#ffd700',
-                                                fontSize: '0.8em', // Трохи більша іконка
-                                                transition: 'all 0.2s',
-                                                padding: 0
+                                                background: 'transparent', border: '1px solid #ffd700', borderRadius: '50%',
+                                                width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', color: '#ffd700', fontSize: '0.8em', padding: 0, transition: '0.2s'
                                             }}
                                             onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }}
                                             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}
@@ -479,22 +481,15 @@ const handleSetExplainer = (targetId) => {
                                         </button>
                                     )}
 
-                                    {/* ✕ KICK (Вигнати) */}
+                                    {/* ✕ КІК */}
                                     {!isMe && (
                                         <button 
                                             onClick={() => handleKick(p.id)} 
                                             title="Вигнати"
                                             style={{
-                                                background: 'transparent',
-                                                border: '1px solid #ff4d4d', // Тонка червона рамка
-                                                borderRadius: '50%',
-                                                width: '24px', height: '24px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: '#ff4d4d',
-                                                fontSize: '0.8em',
-                                                transition: 'all 0.2s',
-                                                padding: 0
+                                                background: 'transparent', border: '1px solid #ff4d4d', borderRadius: '50%',
+                                                width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', color: '#ff4d4d', fontSize: '0.8em', padding: 0, transition: '0.2s'
                                             }}
                                             onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }}
                                             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}
@@ -742,113 +737,70 @@ const handleSetExplainer = (targetId) => {
            <h3 style={{color: '#4ecdc4'}}>🔵 Сині </h3>
            <h1 style={{fontSize: '4em', margin: '10px 0'}}>{score[2]}</h1>
            <div style={{textAlign: 'left', margin: '20px'}}>
-            {teams.team2.map(p => { // <--- ⚠️ ДЛЯ ПРАВОЇ КОЛОНКИ ТУТ МАЄ БУТИ team2
+            {teams.team2.map(p => { // <--- ТУТ team2
                 const isMe = p.id === socket.id;             
-                const isExplainer = p.id === nextExplainerId || p.id === activePlayerId; 
                 const isHost = p.id === hostId;
                 const iAmHost = socket.id === hostId;
 
+                // 👇 ВИПРАВЛЕНА ЛОГІКА
+                const isExplainer = (gameStatus === 'game' || gameStatus === 'paused') 
+                    ? p.id === activePlayerId 
+                    : p.id === nextExplainerId;
+
                 return (
                     <div key={p.id} style={{
-                        padding:'10px 0', // Трохи менше відступів збоку
-                        borderBottom: '1px solid rgba(255,255,255,0.05)', // Тонка лінія замість рамки
+                        padding:'12px 5px', 
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'space-between', 
                         gap: '10px',
-                        // Якщо ведучий - легкий золотий відтінок тексту, без фону
-                        color: isExplainer ? '#ffd700' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
+                        color: isExplainer ? '#4ecdc4' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'),
                         fontWeight: isMe ? 'bold' : 'normal',
-                        transition: 'all 0.3s'
+                        transition: 'all 0.3s',
+                        background: isExplainer ? 'linear-gradient(90deg, rgba(78, 205, 196, 0.1) 0%, transparent 100%)' : 'transparent'
                     }}>
-                        {/* ІМ'Я + СТАТУС */}
-                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden'}}>
-                             <span style={{width: '20px', textAlign: 'center', fontSize: '1.1em'}}>
-                                {isHost ? '👑' : isMe ? '●' : ''}
-                             </span>
+                        {/* ІМ'Я + СТРІЛКА */}
+                        <div style={{display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden'}}>
+                             
+                             {/* СТРІЛКА */}
+                             {isExplainer ? (
+                                 <div style={{
+                                     width: 0, 
+                                     height: 0, 
+                                     borderTop: '6px solid transparent',
+                                     borderBottom: '6px solid transparent',
+                                     borderLeft: '10px solid #4ecdc4',
+                                     marginRight: '5px'
+                                 }}></div>
+                             ) : (
+                                 <div style={{width: '15px', textAlign: 'center', fontSize: '1.1em'}}>
+                                     {isHost ? '👑' : ''}
+                                 </div>
+                             )}
+                             
                              <span style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '1.1em'}}>
                                 {p.name}
                              </span>
                         </div>
 
-                        {/* СТАТУС ТА КНОПКИ */}
+                        {/* КНОПКИ АДМІНА */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
                             
-                            {/* Іконка мікрофону (якщо ведучий) */}
-                            {isExplainer && <span style={{fontSize: '1em', animation: 'pulse 2s infinite'}} title="Ведучий">🎙️</span>}
-
-                            {/* 👇 МІНІМАЛІСТИЧНА ПАНЕЛЬ АДМІНА 👇 */}
                             {iAmHost && (
                                 <div style={{display: 'flex', gap: '8px', marginLeft: '5px'}}>
-                                    
-                                    {/* ▶ PLAY (Зробити ведучим) */}
                                     {!isExplainer && (
-                                        <button 
-                                            onClick={() => handleSetExplainer(p.id)} 
-                                            title="Призначити ведучим"
-                                            style={{
-                                                background: 'transparent',
-                                                border: '1px solid #4ecdc4',
-                                                borderRadius: '50%', // Кругла
-                                                width: '24px', height: '24px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: '#4ecdc4',
-                                                fontSize: '0.7em',
-                                                transition: 'all 0.2s',
-                                                padding: 0
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}
-                                        >
+                                        <button onClick={() => handleSetExplainer(p.id)} title="Призначити ведучим" style={{background: 'transparent', border: '1px solid #4ecdc4', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#4ecdc4', fontSize: '0.7em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#4ecdc4'; e.currentTarget.style.color = '#000'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4ecdc4'; }}>
                                             ▶
                                         </button>
                                     )}
-
-                                    {/* 👑 ADMIN (Передати права) */}
                                     {!isMe && (
-                                        <button 
-                                            onClick={() => handleTransferHost(p.id)} 
-                                            title="Передати права хоста"
-                                            style={{
-                                                background: 'transparent',
-                                                border: '1px solid #ffd700',
-                                                borderRadius: '50%',
-                                                width: '24px', height: '24px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: '#ffd700',
-                                                fontSize: '0.8em', // Трохи більша іконка
-                                                transition: 'all 0.2s',
-                                                padding: 0
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}
-                                        >
+                                        <button onClick={() => handleTransferHost(p.id)} title="Передати права хоста" style={{background: 'transparent', border: '1px solid #ffd700', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ffd700', fontSize: '0.8em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#ffd700'; e.currentTarget.style.color = '#000'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ffd700'; }}>
                                             ♕
                                         </button>
                                     )}
-
-                                    {/* ✕ KICK (Вигнати) */}
                                     {!isMe && (
-                                        <button 
-                                            onClick={() => handleKick(p.id)} 
-                                            title="Вигнати"
-                                            style={{
-                                                background: 'transparent',
-                                                border: '1px solid #ff4d4d', // Тонка червона рамка
-                                                borderRadius: '50%',
-                                                width: '24px', height: '24px',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                color: '#ff4d4d',
-                                                fontSize: '0.8em',
-                                                transition: 'all 0.2s',
-                                                padding: 0
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}
-                                        >
+                                        <button onClick={() => handleKick(p.id)} title="Вигнати" style={{background: 'transparent', border: '1px solid #ff4d4d', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ff4d4d', fontSize: '0.8em', padding: 0, transition: '0.2s'}} onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4d4d'; e.currentTarget.style.color = '#fff'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4d'; }}>
                                             ✕
                                         </button>
                                     )}
