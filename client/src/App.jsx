@@ -482,7 +482,7 @@ const handleSettingsChange = (key, value) => {
          {(gameStatus === 'game' || gameStatus === 'paused') && (
             <div style={styles.card}>
               
-              {/* 1. ВЕРХНЯ ПАНЕЛЬ: ТАЙМЕР + КНОПКИ (В РЯД) */}
+              {/* 1. ВЕРХНЯ ПАНЕЛЬ: ТАЙМЕР + ПАУЗА */}
               <div style={{
                   display: 'flex', 
                   justifyContent: 'center', 
@@ -491,7 +491,7 @@ const handleSettingsChange = (key, value) => {
                   position: 'relative', 
                   minHeight: '60px'
               }}>
-                  {/* ТАЙМЕР (По центру) */}
+                  {/* ТАЙМЕР */}
                   <div style={{
                       fontSize: '3.5em', 
                       fontWeight: 'bold', 
@@ -503,19 +503,15 @@ const handleSettingsChange = (key, value) => {
                       {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
                   </div>
                   
-                  {/* БЛОК КНОПОК ХОСТА (Справа, в ряд) */}
+                  {/* КНОПКА ПАУЗИ (Тільки вона) */}
                   {socket.id === hostId && (
                       <div style={{
                           position: 'absolute',
                           right: '0',
                           top: '50%',
                           transform: 'translateY(-50%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
                           zIndex: 2
                       }}>
-                          {/* КНОПКА ПАУЗИ */}
                           <button 
                               onClick={handleTogglePause}
                               style={{
@@ -536,33 +532,6 @@ const handleSettingsChange = (key, value) => {
                               }}
                           >
                               {gameStatus === 'paused' ? '▶ ГРАТИ' : '⏸ ПАУЗА'}
-                          </button>
-
-                          {/* КНОПКА РЕСТАРТУ */}
-                          <button 
-                              onClick={() => {
-                                  if(window.confirm("🔄 Перезапустити гру? Рахунок буде скинуто.")) {
-                                      handleRestart();
-                                  }
-                              }}
-                              style={{
-                                  background: 'transparent',
-                                  border: '1px solid #ff4d4d',
-                                  color: '#ff4d4d',
-                                  borderRadius: '20px',
-                                  padding: '5px 10px', 
-                                  cursor: 'pointer',
-                                  fontSize: '1.2em',   
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  transition: 'all 0.2s',
-                              }}
-                              title="Рестарт гри"
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 77, 77, 0.1)' }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                          >
-                              🔄
                           </button>
                       </div>
                   )}
@@ -788,14 +757,15 @@ const handleSettingsChange = (key, value) => {
       </div>
 
       {/* --- МІНІ-ПАНЕЛЬ НАЛАШТУВАНЬ (Right Bottom) --- */}
-      {gameStatus === 'lobby' && (
+      {/* Показуємо ЗАВЖДИ, крім стартової сторінки */}
+      {(gameStatus === 'lobby' || gameStatus === 'game' || gameStatus === 'paused' || gameStatus === 'review') && (
         <div style={{
             position: 'fixed',
             bottom: '20px',
             right: '20px',
-            backgroundColor: 'rgba(20, 20, 20, 0.95)', // Більш темний фон
+            backgroundColor: 'rgba(20, 20, 20, 0.95)',
             padding: '15px',
-            borderRadius: '8px', // Менш округлі кути (суворіше)
+            borderRadius: '8px',
             border: '1px solid #333',
             display: 'flex',
             flexDirection: 'column',
@@ -805,10 +775,9 @@ const handleSettingsChange = (key, value) => {
             minWidth: '120px',
             color: '#ddd'
         }}>
-            {/* ТАЙМЕР */}
+            {/* 1. ТАЙМЕР */}
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
                 <span style={{fontSize: '1em', color: '#888'}}>Time</span>
-                
                 {socket.id === hostId ? (
                    <input 
                       type="range" min="10" max="180" step="10" 
@@ -817,14 +786,12 @@ const handleSettingsChange = (key, value) => {
                       style={{width: '60px', cursor: 'pointer', accentColor: '#fff'}}
                    />
                 ) : <div style={{flex: 1}}></div>}
-                
                 <span style={{fontWeight: 'bold', minWidth: '25px', textAlign: 'right'}}>{settings.roundTime}</span>
             </div>
 
-            {/* ПЕРЕМОГА */}
+            {/* 2. ПЕРЕМОГА */}
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
                 <span style={{fontSize: '1em', color: '#888'}}>Win</span>
-                
                 {socket.id === hostId ? (
                    <input 
                       type="range" min="10" max="100" step="5" 
@@ -833,79 +800,21 @@ const handleSettingsChange = (key, value) => {
                       style={{width: '60px', cursor: 'pointer', accentColor: '#fff'}}
                    />
                 ) : <div style={{flex: 1}}></div>}
-                
                 <span style={{fontWeight: 'bold', minWidth: '25px', textAlign: 'right'}}>{settings.winScore}</span>
             </div>
             
             <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
 
-            {/* ЗАМОК (Тільки іконка) */}
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                <span style={{fontSize: '1em', color: '#888'}}>Lobby</span>
-                
-                {socket.id === hostId ? (
-                   <button 
-                      onClick={handleToggleLock}
-                      style={{
-                          background: 'none', 
-                          border: 'none', 
-                          cursor: 'pointer',
-                          fontSize: '1.4em',
-                          padding: '0 5px',
-                          color: isLocked ? '#ff4d4d' : '#4ecdc4', // Червоний або Бірюзовий
-                          transition: 'transform 0.2s'
-                      }}
-                      title={isLocked ? "Відкрити лобі" : "Закрати лобі"}
-                   >
-                      {/* Змінюємо саму іконку */}
-                      {isLocked ? '🔒' : '🔓'}
-                   </button>
-                ) : (
-                    <span style={{fontSize: '1.2em'}}>
-                        {isLocked ? '🔒' : '🔓'}
-                    </span>
-                    
-                )}
-                {socket.id === hostId && (
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px'}}>
-                    <span style={{fontSize: '1em', color: isLocked ? '#555' : '#888'}}>Shuffle</span>
-                    <button 
-                        onClick={handleShuffle}
-                        disabled={isLocked} // Не можна мішати, якщо закрито
-                        style={{
-                            background: 'none', 
-                            border: 'none', 
-                            cursor: isLocked ? 'not-allowed' : 'pointer',
-                            fontSize: '1.4em',
-                            padding: '0 5px',
-                            color: isLocked ? '#555' : '#ffd700', // Жовтий коли активно, сірий коли закрито
-                            transition: 'transform 0.2s',
-                            opacity: isLocked ? 0.3 : 1
-                        }}
-                        title="Перемішати гравців (Тільки при відкритому лобі)"
-                    >
-                        🔀
-                    </button>
-                </div>
-            )}
-            {/* 👇 ВИБІР СКЛАДНОСТІ 👇 */}
+            {/* 3. СКЛАДНІСТЬ */}
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'}}>
                 <span style={{fontSize: '1em', color: '#888'}}>Diff</span>
-                
                 {socket.id === hostId ? (
                    <select 
                       value={settings.difficulty || 'normal'}
                       onChange={(e) => handleSettingsChange('difficulty', e.target.value)}
                       style={{
-                          flex: 1,
-                          padding: '5px',
-                          borderRadius: '5px',
-                          border: 'none',
-                          backgroundColor: '#333',
-                          color: '#fff',
-                          cursor: 'pointer',
-                          outline: 'none',
-                          textAlign: 'right'
+                          flex: 1, padding: '5px', borderRadius: '5px', border: 'none',
+                          backgroundColor: '#333', color: '#fff', cursor: 'pointer', outline: 'none', textAlign: 'right'
                       }}
                    >
                        <option value="easy">Easy</option>
@@ -918,7 +827,58 @@ const handleSettingsChange = (key, value) => {
                     </span>
                 )}
             </div>
-            </div>
+
+            {/* 4. ЗАМОК ТА SHUFFLE (Тільки в Лобі) */}
+            {gameStatus === 'lobby' && (
+                <>
+                    <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                        <span style={{fontSize: '1em', color: '#888'}}>Lobby</span>
+                        {socket.id === hostId ? (
+                        <button onClick={handleToggleLock} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4em', padding: '0 5px'}} title={isLocked ? "Відкрити" : "Закрити"}>
+                            {isLocked ? '🔒' : '🔓'}
+                        </button>
+                        ) : <span style={{fontSize: '1.2em'}}>{isLocked ? '🔒' : '🔓'}</span>}
+                        
+                        {socket.id === hostId && (
+                            <button onClick={handleShuffle} disabled={isLocked} style={{background: 'none', border: 'none', cursor: isLocked ? 'not-allowed' : 'pointer', fontSize: '1.4em', padding: '0 5px', opacity: isLocked ? 0.3 : 1}} title="Перемішати">
+                                🔀
+                            </button>
+                        )}
+                    </div>
+                </>
+            )}
+
+            {/* 👇 5. КНОПКА РЕСТАРТУ (ТІЛЬКИ ДЛЯ ХОСТА) 👇 */}
+            {socket.id === hostId && (
+                <>
+                    <div style={{borderTop: '1px solid #444', margin: '5px 0'}}></div>
+                    <button 
+                        onClick={() => {
+                            if(window.confirm("🔴 УВАГА: Це повністю скине гру та рахунок. Продовжити?")) {
+                                handleRestart();
+                            }
+                        }}
+                        style={{
+                            backgroundColor: '#ff4d4d',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '5px',
+                            padding: '10px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            fontSize: '0.9em',
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px'
+                        }}
+                    >
+                        🔄 RESTART GAME
+                    </button>
+                </>
+            )}
         </div>
       )}
 
