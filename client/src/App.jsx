@@ -37,8 +37,17 @@ const styles = {
   title: { fontSize: '3em', fontWeight: 'bold', marginBottom: '10px', background: '-webkit-linear-gradient(45deg, #646cff, #a56eff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' },
   button: { backgroundColor: '#646cff', color: 'white', border: 'none', padding: '15px 30px', fontSize: '18px', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', width: '100%', marginTop: '10px' },
   input: { padding: '15px', borderRadius: '8px', border: '1px solid #555', backgroundColor: '#333', color: 'white', fontSize: '16px', width: '100%', marginBottom: '20px', outline: 'none' },
-  gameLayout: { display: 'flex', flexDirection: 'row', justifyContent: 'space-between', gap: '40px', width: '98%', maxWidth: '1400px', alignItems: 'flex-start' },
-  teamBox: { backgroundColor: '#2a2a2a', padding: '20px', borderRadius: '15px', flex: 1, minHeight: '300px', textAlign: 'center', border: '2px solid #444' },
+  gameLayout: { 
+    display: 'flex', 
+    flexDirection: 'row', 
+    flexWrap: 'wrap',
+    justifyContent: 'center', 
+    gap: '20px', 
+    width: '98%', 
+    maxWidth: '1400px', 
+    alignItems: 'flex-start' 
+},
+  teamBox: { backgroundColor: '#2a2a2a', padding: '20px', borderRadius: '15px', flex: 1, minHeight: '300px',minWidth: '300px',  textAlign: 'center', border: '2px solid #444' },
   joinBtn: { marginTop: '15px', padding: '10px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', color: 'white', width: '100%' },
   smallRoomCode: { fontSize: '2em', fontWeight: 'bold', color: '#ffc107', margin: '10px 0', fontFamily: 'monospace' },
   
@@ -410,10 +419,10 @@ const handleSetExplainer = (targetId) => {
                         alignItems: 'center', 
                         justifyContent: 'space-between', 
                         gap: '10px',
-                        color: isExplainer ? '#4ecdc4' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'), // Бірюзовий для ведучого
+                        color: isExplainer ? '#cd4e69ff' : (isMe ? '#fff' : 'rgba(255,255,255,0.6)'), // Бірюзовий для ведучого
                         fontWeight: isMe ? 'bold' : 'normal',
                         transition: 'all 0.3s',
-                        background: isExplainer ? 'linear-gradient(90deg, rgba(78, 205, 196, 0.1) 0%, transparent 100%)' : 'transparent' // Легкий градієнт
+                        background: isExplainer ? 'linear-gradient(90deg, rgba(205, 78, 78, 0.1) 0%, transparent 100%)' : 'transparent' // Легкий градієнт
                     }}>
                         {/* ІМ'Я + СТРІЛКА */}
                         <div style={{display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden'}}>
@@ -425,7 +434,7 @@ const handleSetExplainer = (targetId) => {
                                      height: 0, 
                                      borderTop: '6px solid transparent',
                                      borderBottom: '6px solid transparent',
-                                     borderLeft: '10px solid #4ecdc4', // Колір стрілки
+                                     borderLeft: '10px solid #cd4e4eff', // Колір стрілки
                                      marginRight: '5px'
                                  }}></div>
                              ) : (

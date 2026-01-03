@@ -6,7 +6,7 @@ const http = require('http');       // Стандартний модуль Node.
 const { Server } = require("socket.io"); // Бібліотека для веб-сокетів (real-time зв'язок)
 const cors = require('cors');       // Дозволяє запити з інших доменів (наприклад, з твого React на localhost:3000)
 const { WORD_PACKS } = require('./words');
-
+const MAX_ROOMS = 100;
 const app = express();
 app.use(cors()); // Дозволяємо всім стукатись на сервер
 
@@ -75,7 +75,12 @@ io.on('connection', (socket) => {
 
     // 1. СТВОРЕННЯ КІМНАТИ
     // 1. СТВОРЕННЯ КІМНАТИ
-    socket.on("create_room", () => {
+   socket.on("create_room", () => {
+    if (Object.keys(rooms).length >= MAX_ROOMS) {
+        socket.emit("error_message", "Сервер перевантажений. Спробуйте пізніше.");
+        return;
+    }
+        
         let roomId = generateRoomId();
         while (rooms[roomId]) {
             roomId = generateRoomId();
@@ -121,7 +126,8 @@ io.on('connection', (socket) => {
 
             socket.join(roomId);
             
-            const safeName = name ? name.trim() : "Анонім";
+
+            let safeName = name ? name.trim().slice(0, 30) : "Анонім"; 
             
             // Перевіряємо, чи є гравець у командах
             // (Використовуємо find, щоб знайти саме за іменем, якщо ID змінився)
@@ -752,6 +758,19 @@ io.on('connection', (socket) => {
 
 });
 
+setInterval(() => {
+    const now = Date.now();
+    for (const roomId in rooms) {
+        const room = rooms[roomId];
+        // Якщо кімната створена давно (наприклад, 2 години тому) і в ній нікого немає
+        // Можна додати поле createdAt при створенні кімнати
+        // Або просто: якщо порожня > 10 хвилин
+        if (room.team1.length === 0 && room.team2.length === 0 && (!room.spectators || room.spectators.length === 0)) {
+             console.log(`🧹 Auto-cleaning room ${roomId}`);
+             delete rooms[roomId];
+        }
+    }
+}, 1000 * 60 * 10); // Запускати кожні 10 хвилин
 // Запуск прослуховування порту
 server.listen(3001, () => {
     console.log('SERVER STARTED ON 3001');
