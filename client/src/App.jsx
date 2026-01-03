@@ -157,7 +157,9 @@ function GamePage() {
           setGameStatus('victory');
           setWinner(updatedTeams.winner);
       } else if (updatedTeams.status === 'game') {
-          setGameStatus('game');
+          setGameStatus('game');         
+         }   else if (updatedTeams.status === 'paused') { // <--- НОВЕ
+          setGameStatus('paused');
       } else if (updatedTeams.status === 'review') {
           setGameStatus('review');
       } else {
@@ -275,6 +277,10 @@ function GamePage() {
       if (!isLocked) {
           socket.emit("shuffle_teams", { roomId });
       }
+  };
+
+  const handleTogglePause = () => {
+      socket.emit("toggle_pause", { roomId });
   };
   // --- ЛОГІКА РЕДАГУВАННЯ СПИСКУ (REVIEW) ---
   // Це працює ТІЛЬКИ на клієнті. Ми змінюємо state `reviewHistory`.
@@ -472,66 +478,186 @@ const handleSettingsChange = (key, value) => {
             </>
           )}
 
-         {/* ЕКРАН 2: ГРА */}
-         {gameStatus === 'game' && (
+{/* ЕКРАН 2: ГРА (АБО ПАУЗА) */}
+         {(gameStatus === 'game' || gameStatus === 'paused') && (
             <div style={styles.card}>
-              <div style={{fontSize: '2em', fontWeight: 'bold', color: timeLeft <= 10 ? '#ff4d4d' : '#fff', marginBottom: '10px'}}>⏱ {timeLeft}</div>
-              {socket.id === activePlayerId ? (
-                  <>
-                      <h1 style={{fontSize: '3em', color: '#ffd700', margin: '20px 0'}}>{currentWord}</h1>
-                      <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
-                         <button style={{...styles.button, backgroundColor: '#ff6b6b'}} onClick={() => handleNextWord('skipped')}>Пропустити (-1)</button>
-                         <button style={{...styles.button, backgroundColor: '#4ecdc4'}} onClick={() => handleNextWord('guessed')}>Вгадав (+1)</button>
+              
+              {/* 1. ВЕРХНЯ ПАНЕЛЬ: ТАЙМЕР + КНОПКИ (В РЯД) */}
+              <div style={{
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  marginBottom: '20px',
+                  position: 'relative', 
+                  minHeight: '60px'
+              }}>
+                  {/* ТАЙМЕР (По центру) */}
+                  <div style={{
+                      fontSize: '3.5em', 
+                      fontWeight: 'bold', 
+                      color: timeLeft <= 10 ? '#ff4d4d' : '#fff',
+                      textShadow: '0 0 10px rgba(0,0,0,0.5)',
+                      fontVariantNumeric: 'tabular-nums',
+                      zIndex: 1
+                  }}>
+                      {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                  </div>
+                  
+                  {/* БЛОК КНОПОК ХОСТА (Справа, в ряд) */}
+                  {socket.id === hostId && (
+                      <div style={{
+                          position: 'absolute',
+                          right: '0',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          zIndex: 2
+                      }}>
+                          {/* КНОПКА ПАУЗИ */}
+                          <button 
+                              onClick={handleTogglePause}
+                              style={{
+                                  background: 'transparent',
+                                  border: `1px solid ${gameStatus === 'paused' ? '#4ecdc4' : '#666'}`,
+                                  color: gameStatus === 'paused' ? '#4ecdc4' : '#888',
+                                  borderRadius: '20px',
+                                  padding: '5px 15px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8em',
+                                  fontWeight: 'bold',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s',
+                                  whiteSpace: 'nowrap',
+                                  minWidth: '80px'
+                              }}
+                          >
+                              {gameStatus === 'paused' ? '▶ ГРАТИ' : '⏸ ПАУЗА'}
+                          </button>
+
+                          {/* КНОПКА РЕСТАРТУ */}
+                          <button 
+                              onClick={() => {
+                                  if(window.confirm("🔄 Перезапустити гру? Рахунок буде скинуто.")) {
+                                      handleRestart();
+                                  }
+                              }}
+                              style={{
+                                  background: 'transparent',
+                                  border: '1px solid #ff4d4d',
+                                  color: '#ff4d4d',
+                                  borderRadius: '20px',
+                                  padding: '5px 10px', 
+                                  cursor: 'pointer',
+                                  fontSize: '1.2em',   
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s',
+                              }}
+                              title="Рестарт гри"
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 77, 77, 0.1)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                              🔄
+                          </button>
                       </div>
-                      <p style={{color: '#888', marginTop: '10px'}}>Ти пояснюєш! Швидше!</p>
-                  </>
+                  )}
+              </div>
+
+              {/* 2. ОСНОВНА ЧАСТИНА (ГРА АБО ПАУЗА) */}
+              {gameStatus === 'paused' ? (
+                  // --- ЕКРАН ПАУЗИ ---
+                  <div style={{
+                      padding: '40px 0', 
+                      borderTop: '1px solid #444', 
+                      borderBottom: '1px solid #444',
+                      animation: 'fadeIn 0.5s'
+                  }}>
+                      <h1 style={{
+                          fontSize: '3em', 
+                          color: '#ff4d4d', 
+                          margin: '0', 
+                          letterSpacing: '8px', 
+                          textTransform: 'uppercase'
+                      }}>
+                          PAUSE
+                      </h1>
+                      <p style={{color: '#666', marginTop: '10px'}}>Ведучий зупинив гру</p>
+                  </div>
               ) : (
+                  // --- ЕКРАН ГРИ ---
                   <>
-                      <h1 style={{fontSize: '3em', color: '#555', margin: '20px 0'}}>???</h1>
-                      <p style={{fontSize: '1.2em'}}>Зараз пояснює гравець твоєї (або чужої) команди.</p>
-                      <p style={{color: '#ffd700'}}>Слухай уважно!</p>
+                      {socket.id === activePlayerId ? (
+                        <>
+                            {/* ТИ ПОЯСНЮЄШ */}
+                            <div style={{minHeight: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                                <h1 style={{fontSize: '3.5em', color: '#ffd700', margin: '0', wordBreak: 'break-word', lineHeight: '1.1'}}>
+                                    {currentWord}
+                                </h1>
+                            </div>
+                            
+                            <div style={{display: 'flex', gap: '15px', marginTop: '20px', justifyContent: 'center'}}>
+                               <button style={{...styles.button, width: 'auto', flex: 1, backgroundColor: '#333', border: '1px solid #ff6b6b', color: '#ff6b6b'}} onClick={() => handleNextWord('skipped')}>
+                                   ПРОПУСТИТИ
+                               </button>
+                               <button style={{...styles.button, width: 'auto', flex: 1, backgroundColor: '#4ecdc4', color: '#000'}} onClick={() => handleNextWord('guessed')}>
+                                   ВГАДАВ!
+                               </button>
+                            </div>
+                            <p style={{color: '#666', marginTop: '15px', fontSize: '0.9em'}}>Ти пояснюєш</p>
+                        </>
+                      ) : (
+                        <>
+                            {/* ТИ СЛУХАЄШ */}
+                            <div style={{minHeight: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+                                <h1 style={{fontSize: '4em', color: '#333', margin: '0'}}>???</h1>
+                            </div>
+                            <p style={{fontSize: '1.1em', color: '#aaa'}}>Зараз пояснюють інші.</p>
+                        </>
+                      )}
                   </>
               )}
 
-              {/* 👇👇👇 НОВИЙ БЛОК: ЖИВА ІСТОРІЯ СЛІВ 👇👇👇 */}
+              {/* 3. ЖИВА ІСТОРІЯ (Завжди знизу) */}
               {liveHistory.length > 0 && (
                   <div style={{
                       marginTop: '20px',
-                      borderTop: '1px solid #444',
-                      paddingTop: '10px',
+                      paddingTop: '15px',
+                      borderTop: '1px solid #333',
                       textAlign: 'left',
-                      maxHeight: '150px', // Обмежена висота
-                      overflowY: 'auto',  // Прокрутка
+                      maxHeight: '120px', 
+                      overflowY: 'auto',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '5px'
+                      gap: '8px'
                   }}>
-                      <div style={{fontSize: '0.9em', color: '#888', marginBottom: '5px', textAlign: 'center'}}>Історія раунду:</div>
+                      <div style={{fontSize: '0.8em', textTransform: 'uppercase', color: '#555', textAlign: 'center', letterSpacing: '1px'}}>Історія раунду</div>
                       
-                      {/* Відображаємо у зворотному порядку (нові зверху) */}
                       {[...liveHistory].reverse().map((item, idx) => (
                           <div key={idx} style={{
                               display: 'flex', 
                               justifyContent: 'space-between',
-                              padding: '5px 10px',
-                              borderRadius: '4px',
-                              backgroundColor: 'rgba(255,255,255,0.05)',
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              backgroundColor: 'rgba(255,255,255,0.03)',
+                              borderLeft: item.status === 'guessed' ? '3px solid #4ecdc4' : '3px solid #ff6b6b'
                           }}>
-                              <span style={{color: '#ddd'}}>{item.word}</span>
-                              <span style={{
-                                  fontWeight: 'bold',
-                                  color: item.status === 'guessed' ? '#4ecdc4' : '#ff6b6b'
-                              }}>
-                                  {item.status === 'guessed' ? '+1' : '-1'}
-                              </span>
+                              <span style={{color: '#ccc', fontSize: '1.1em'}}>{item.word}</span>
+                              {item.status === 'guessed' 
+                                  ? <span style={{color: '#4ecdc4'}}>✔</span> 
+                                  : <span style={{color: '#ff6b6b'}}>✕</span>
+                              }
                           </div>
                       ))}
                   </div>
               )}
-              {/* 👆👆👆 ---------------------------------- 👆👆👆 */}
             </div>
-          )}
+         )}
 
           {/* ЕКРАН 3: REVIEW */}
           {gameStatus === 'review' && (

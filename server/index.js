@@ -162,77 +162,72 @@ io.on('connection', (socket) => {
             }
         }
     });
-   // --- 7. ПОЧАТОК РАУНДУ (ВСТАВ ЦЕЙ БЛОК) ---
+   // --- 7. ПОЧАТОК РАУНДУ (ВИПРАВЛЕНО) ---
     socket.on("request_start", ({ roomId }) => {
         const room = rooms[roomId];
         
-        // Перевірка: чи існує кімната і чи натиснув ведучий (або хост)
-        // (Тут дозволяємо натискати nextExplainerId, бо він бачить кнопку)
-        if (room && (socket.id === room.nextExplainerId || socket.id === room.hostId)) {
-            
-            // Перевірка на наявність гравців
+        if (room) {
+            // 1. 👇 ОБЧИСЛЮЄМО, ХТО ЗАРАЗ МАЄ БУТИ ВЕДУЧИМ 👇
             const currentTeamArray = room.currentTeam === 1 ? room.team1 : room.team2;
-            if (currentTeamArray.length === 0) return;
+            if (currentTeamArray.length === 0) return; // Нікого немає
 
-            if (room.timer) clearInterval(room.timer);
-
-            // --- ВИЗНАЧЕННЯ ВЕДУЧОГО ---
             let playerIndex = room.currentTeam === 1 ? room.team1Index : room.team2Index;
-            if (playerIndex >= currentTeamArray.length) {
-                playerIndex = 0;
-                if (room.currentTeam === 1) room.team1Index = 0;
-                else room.team2Index = 0;
-            }
-            const explainer = currentTeamArray[playerIndex];
-            room.activePlayerId = explainer.id;
-            // ----------------------------
+            // Страховка від виходу за межі масиву
+            if (playerIndex >= currentTeamArray.length) playerIndex = 0;
 
-            room.status = 'game';
-            room.isLocked = true; // Блокуємо вхід
-            room.roundHistory = []; 
-            room.roundScore = 0;    
-            
-            // 👇 ЛОГІКА СЛІВ (З урахуванням складності) 👇
-            if (!room.deck || room.deck.length === 0) {
-                try {
-                    const difficulty = (room.settings && room.settings.difficulty) ? room.settings.difficulty : 'normal';
-                    // Беремо пак або фолбек на normal
-                    const pack = (WORD_PACKS && WORD_PACKS[difficulty]) ? WORD_PACKS[difficulty] : ["Error", "No", "Words"];
-                    
-                    room.deck = shuffleArray([...pack]);
-                    console.log(`Deck reloaded: ${difficulty}, words: ${room.deck.length}`);
-                } catch (e) {
-                    console.error("Error loading words:", e);
-                    room.deck = ["Error", "Loading", "Words"]; 
+            const targetPlayer = currentTeamArray[playerIndex];
+
+            // 2. 👇 ПЕРЕВІРКА ПРАВ 👇
+            // Дозволяємо почати, якщо ти ХОСТ або ти ТОЙ САМИЙ ГРАВЕЦЬ
+            if (socket.id === room.hostId || socket.id === targetPlayer.id) {
+                
+                if (room.timer) clearInterval(room.timer);
+
+                // Призначаємо активного гравця
+                room.activePlayerId = targetPlayer.id;
+                
+                // Статус
+                room.status = 'game';
+                room.isLocked = true;
+                room.roundHistory = []; 
+                room.roundScore = 0;    
+                
+                // Логіка колоди (без змін)
+                if (!room.deck || room.deck.length === 0) {
+                     try {
+                        const difficulty = (room.settings && room.settings.difficulty) ? room.settings.difficulty : 'normal';
+                        // @ts-ignore
+                        const pack = (WORD_PACKS && WORD_PACKS[difficulty]) ? WORD_PACKS[difficulty] : ["Error"];
+                        room.deck = shuffleArray([...pack]);
+                    } catch (e) { room.deck = ["Error"]; }
                 }
-            }
-            // 👆 -----------------------
-            
-            const firstWord = room.deck.pop();
-            room.currentWord = firstWord; 
-            room.timeLeft = room.settings.roundTime; 
+                
+                const firstWord = room.deck.pop();
+                room.currentWord = firstWord; 
+                room.timeLeft = room.settings.roundTime; 
 
-            // Оновлюємо всіх (статус, замок)
-            io.to(roomId).emit("update_teams", getSafeRoom(room));
-            
-            // Старт гри
-            io.to(roomId).emit("game_started", { word: firstWord, explainerId: room.activePlayerId });
-            io.to(roomId).emit("timer_update", room.timeLeft);
-
-            // Таймер
-            room.timer = setInterval(() => {
-                room.timeLeft--; 
+                // Оновлюємо всіх
+                io.to(roomId).emit("update_teams", getSafeRoom(room));
+                io.to(roomId).emit("game_started", { word: firstWord, explainerId: room.activePlayerId });
                 io.to(roomId).emit("timer_update", room.timeLeft);
+                // Очищаємо живу історію для всіх
+                io.to(roomId).emit("update_live_history", []);
 
-                if (room.timeLeft <= 0) {
-                    clearInterval(room.timer);
-                    room.status = 'review';
-                    if (room.currentWord) {
-                        room.roundHistory.push({ word: room.currentWord, status: 'none' });
+                // Таймер
+                room.timer = setInterval(() => {
+                    room.timeLeft--; 
+                    io.to(roomId).emit("timer_update", room.timeLeft);
+
+                    if (room.timeLeft <= 0) {
+                        clearInterval(room.timer);
+                        room.status = 'review';
+                        if (room.currentWord) {
+                            room.roundHistory.push({ word: room.currentWord, status: 'none' });
+                        }
+                        io.to(roomId).emit("round_ended", room.roundHistory);
                     }
-                    io.to(roomId).emit("round_ended", room.roundHistory);
-                }
-            }, 1000);
+                }, 1000);
+            }
         }
     });
 
@@ -448,56 +443,69 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- ПІДТВЕРДЖЕННЯ РЕЗУЛЬТАТІВ РАУНДУ ---
+   // --- ПІДТВЕРДЖЕННЯ РЕЗУЛЬТАТІВ ТА ЗМІНА ЧЕРГИ ---
     socket.on("confirm_results", ({ roomId }) => {
         const room = rooms[roomId];
-        if (room && socket.id === room.hostId) {
+       if (room && (socket.id === room.hostId || socket.id === room.activePlayerId)) {
             
-            // 1. Рахуємо бали за цей раунд
+            // 1. Рахуємо бали
             const roundPoints = room.roundHistory.reduce((acc, item) => {
                 if (item.status === 'guessed') return acc + 1;
                 if (item.status === 'skipped') return acc - 1;
                 return acc;
             }, 0);
-
-            // 2. Додаємо бали поточній команді
             room.score[room.currentTeam] += roundPoints;
 
-            // 3. ЛОГІКА ПЕРЕХОДУ ХОДУ І ПЕРЕМОГИ
-            // Якщо зараз ходила Команда 1 -> Просто переходимо до Команди 2
+            // 2. 👇 РОЗУМНА ЗМІНА ГРАВЦЯ В СЕРЕДИНІ КОМАНДИ 👇
+            // Спочатку зсуваємо індекс у тій команді, яка щойно грала
             if (room.currentTeam === 1) {
-                room.currentTeam = 2;
-                room.status = 'lobby'; 
-                
-                // Змінюємо ведучого для наступного раунду (Команда 2)
-                room.team1Index = (room.team1Index + 1) % (room.team1.length || 1); // Зсув черги у 1 команди
-                // (Для 2 команди визначимо, коли дійде черга, або можна зараз підготувати)
-                
+                if (room.team1.length > 0) {
+                    room.team1Index = (room.team1Index + 1) % room.team1.length;
+                }
             } else {
-                // Якщо зараз ходила Команда 2 (Кінець повного кола)
-                room.currentTeam = 1;
-                room.team2Index = (room.team2Index + 1) % (room.team2.length || 1); // Зсув черги у 2 команди
-
-                // 🔥 ПЕРЕВІРКА ПЕРЕМОГИ (Тільки тут!)
-                const score1 = room.score[1];
-                const score2 = room.score[2];
-                const target = room.settings.winScore;
-
-                if (score1 >= target || score2 >= target) {
-                    room.status = 'victory';
-                    // Визначаємо переможця
-                    if (score1 > score2) room.winner = 1;
-                    else if (score2 > score1) room.winner = 2;
-                    else room.winner = 'draw'; // Нічия
-                } else {
-                    room.status = 'lobby';
+                if (room.team2.length > 0) {
+                    room.team2Index = (room.team2Index + 1) % room.team2.length;
                 }
             }
 
-            // Очищаємо історію
+            // 3. 👇 РОЗУМНА ЗМІНА КОМАНДИ 👇
+            // Чи є живі люди в командах?
+            const team1HasPlayers = room.team1.length > 0;
+            const team2HasPlayers = room.team2.length > 0;
+
+            if (room.currentTeam === 1) {
+                // Якщо ми були 1, то йдемо до 2, ТІЛЬКИ якщо там хтось є
+                if (team2HasPlayers) {
+                    room.currentTeam = 2;
+                } else {
+                    // Якщо в 2 нікого немає, залишаємось у 1 (граємо самі з собою по черзі)
+                    console.log(`Room ${roomId}: Team 2 is empty, staying on Team 1`);
+                }
+            } else {
+                // Якщо ми були 2, йдемо до 1 (якщо там хтось є)
+                if (team1HasPlayers) {
+                    room.currentTeam = 1;
+                } else {
+                    console.log(`Room ${roomId}: Team 1 is empty, staying on Team 2`);
+                }
+            }
+
+            // 4. Перевірка перемоги
+            const target = room.settings.winScore;
+            if (room.score[1] >= target || room.score[2] >= target) {
+                room.status = 'victory';
+                if (room.score[1] > room.score[2]) room.winner = 1;
+                else if (room.score[2] > room.score[1]) room.winner = 2;
+                else room.winner = 'draw';
+            } else {
+                room.status = 'lobby';
+            }
+
+            // Очищення
             room.roundHistory = [];
             room.roundScore = 0;
             room.timer = null;
+            room.activePlayerId = null; // Скидаємо активного, бо зараз лобі
 
             io.to(roomId).emit("update_teams", getSafeRoom(room));
         }
@@ -507,6 +515,7 @@ io.on('connection', (socket) => {
     socket.on("restart_game", ({ roomId }) => {
         const room = rooms[roomId];
         if (room && socket.id === room.hostId) {
+            if (room.timer) clearInterval(room.timer);
             room.score = { 1: 0, 2: 0 }; // Скидаємо рахунок
             room.status = 'lobby';       // Повертаємо в лобі
             room.currentTeam = 1;        // Починають знову перші (або рандом, як хочеш)
@@ -597,7 +606,39 @@ io.on('connection', (socket) => {
             io.to(roomId).emit("update_teams", getSafeRoom(room));
         }
     });
+// --- ⏸️ ПАУЗА ГРИ ---
+    socket.on("toggle_pause", ({ roomId }) => {
+        const room = rooms[roomId];
+        if (room && socket.id === room.hostId) {
+            
+            if (room.status === 'game') {
+                // СТАВИМО НА ПАУЗУ
+                if (room.timer) clearInterval(room.timer); // Зупиняємо годинник
+                room.status = 'paused';
+                io.to(roomId).emit("update_teams", getSafeRoom(room));
+                
+            } else if (room.status === 'paused') {
+                // ЗНІМАЄМО З ПАУЗИ
+                room.status = 'game';
+                io.to(roomId).emit("update_teams", getSafeRoom(room));
 
+                // Запускаємо таймер знову
+                room.timer = setInterval(() => {
+                    room.timeLeft--; 
+                    io.to(roomId).emit("timer_update", room.timeLeft);
+
+                    if (room.timeLeft <= 0) {
+                        clearInterval(room.timer);
+                        room.status = 'review';
+                        if (room.currentWord) {
+                            room.roundHistory.push({ word: room.currentWord, status: 'none' });
+                        }
+                        io.to(roomId).emit("round_ended", room.roundHistory);
+                    }
+                }, 1000);
+            }
+        }
+    });
     // --- 7. ВІДКЛЮЧЕННЯ (DISCONNECT) ---
     // Найскладніша частина через проблему "F5" (оновлення сторінки)
    // 7. ВІДКЛЮЧЕННЯ (DISCONNECT)
